@@ -3,6 +3,8 @@ import './App.css'
 import Navbar from './components/landing/Navbar'
 import Hero from './components/landing/Hero'
 import Features from './components/landing/Features'
+import CultureValues from './components/landing/CultureValues'
+import HowItWorks from './components/landing/HowItWorks'
 import MonitorSection from './components/landing/MonitorSection'
 import FeatureCards from './components/landing/FeatureCards'
 import ConnectionSection from './components/landing/ConnectionSection'
@@ -16,6 +18,8 @@ function App() {
       <Navbar />
       <Hero />
       <Features />
+      <CultureValues />
+      <HowItWorks />
       <MonitorSection />
       <FeatureCards />
       <ConnectionSection />

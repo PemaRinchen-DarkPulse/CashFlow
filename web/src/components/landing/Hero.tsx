@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import PhoneMockup from './PhoneMockup';
 
 export default function Hero() {
@@ -7,8 +8,13 @@ export default function Hero() {
         <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-center">
 
           {/* copy */}
-          <div className="max-w-xl">
-            <h1 className="text-[2.75rem] md:text-6xl font-extrabold leading-[1.1] tracking-tight">
+          <motion.div
+            className="max-w-xl"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <h1 className="text-[2.75rem] md:text-6xl font-bold leading-[1.1] tracking-tight">
               Better healthcare for every{' '}
               <span className="relative inline-block">
                 <span className="relative z-10">Bhutanese</span>
@@ -17,7 +23,7 @@ export default function Hero() {
               citizen
             </h1>
 
-            <p className="mt-5 text-gray-500 text-base md:text-lg leading-[1.7] max-w-md">
+            <p className="mt-5 text-gray-600 text-base md:text-lg leading-[1.7] max-w-md">
               One app that links doctors, patients, and pharmacies across all 20
               dzongkhags — so a farmer in Lhuntse gets the same quality of care
               as someone in Thimphu.
@@ -53,10 +59,15 @@ export default function Hero() {
                 </a>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* phones */}
-          <div className="relative flex justify-center items-center min-h-[520px]">
+          <motion.div
+            className="relative flex justify-center items-center min-h-[520px]"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          >
             {/* floating badge */}
             <div className="absolute -top-1 right-2 md:right-6 bg-white rounded-xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] px-3.5 py-2.5 flex items-center gap-2.5 z-20">
               <div className="flex -space-x-1.5">
@@ -153,7 +164,7 @@ export default function Hero() {
                 </div>
               </PhoneMockup>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

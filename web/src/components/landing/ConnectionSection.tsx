@@ -1,4 +1,5 @@
 import { Stethoscope, User, Pill } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function ConnectionSection() {
   return (
@@ -41,12 +42,18 @@ export default function ConnectionSection() {
           </div>
 
           {/* copy */}
-          <div className="order-1 md:order-2 max-w-md">
-            <p className="text-sm font-semibold uppercase tracking-widest text-green-600 mb-3">Three-node architecture</p>
-            <h2 className="text-4xl md:text-[2.5rem] font-extrabold leading-tight tracking-tight">
+          <motion.div
+            className="order-1 md:order-2 max-w-md"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, margin: '-60px' }}
+            transition={{ duration: 0.5 }}
+          >
+            <span className="section-label">Three-node architecture</span>
+            <h2 className="mt-3 text-4xl md:text-[2.5rem] font-bold leading-tight tracking-tight">
               One platform, three perspectives
             </h2>
-            <p className="mt-4 text-gray-500 text-base md:text-lg leading-relaxed">
+            <p className="mt-4 text-gray-600 text-base md:text-lg leading-relaxed">
               Doctors see a patient's full history before the call starts. Patients
               see which pharmacy has their medicine in stock. Pharmacies verify
               identity with a single tap. Every interaction is logged and encrypted.
@@ -65,7 +72,7 @@ export default function ConnectionSection() {
                 Pharmacy stock drops → Automatic resupply to MSD
               </li>
             </ul>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

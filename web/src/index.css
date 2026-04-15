@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+:root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --color-moss-50: #f0fdf4;
   --color-moss-100: #dcfce7;
@@ -45,4 +45,28 @@ body {
 .card-lift:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+/* section intro label — pill style */
+.section-label {
+  font-size: 0.8125rem;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  line-height: 1.4;
+}
+
+/* feature number counters */
+.feat-num {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #d1d5db;
+  letter-spacing: -0.02em;
 }

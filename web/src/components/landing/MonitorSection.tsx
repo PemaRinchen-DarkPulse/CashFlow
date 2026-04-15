@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import PhoneMockup from './PhoneMockup';
 
 export default function MonitorSection() {
@@ -7,14 +8,18 @@ export default function MonitorSection() {
         <div className="grid md:grid-cols-2 gap-14 items-center">
 
           {/* copy */}
-          <div className="max-w-md">
-            <span className="inline-block text-sm font-semibold uppercase tracking-widest text-green-400 mb-5">
-              Stay in the loop
-            </span>
-            <h2 className="text-4xl md:text-[2.5rem] font-extrabold leading-tight tracking-tight">
+          <motion.div
+            className="max-w-md"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, margin: '-60px' }}
+            transition={{ duration: 0.5 }}
+          >
+            <span className="section-label" style={{ background: 'rgba(22,163,74,0.1)', borderColor: 'rgba(22,163,74,0.2)', color: '#4ade80' }}>Stay in the loop</span>
+            <h2 className="mt-3 text-4xl md:text-[2.5rem] font-bold leading-tight tracking-tight">
               Your health story, always&nbsp;with&nbsp;you
             </h2>
-            <p className="mt-4 text-gray-400 text-base md:text-lg leading-relaxed">
+            <p className="mt-4 text-gray-300 text-base md:text-lg leading-relaxed">
               Every consultation, prescription, and lab result lives in one place.
               Switch providers, move dzongkhags, get referred to JDWNRH — nothing
               gets lost along the way.
@@ -22,7 +27,7 @@ export default function MonitorSection() {
             <a href="#" className="inline-block mt-7 text-base font-medium bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg transition-colors">
               See how it works
             </a>
-          </div>
+          </motion.div>
 
           {/* phone */}
           <div className="flex justify-center md:justify-end">

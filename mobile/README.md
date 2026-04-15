@@ -1,50 +1,103 @@
-# Welcome to your Expo app 👋
+# AiMedicare — Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The cross-platform mobile application for AiMedicare, Bhutan's integrated digital health ecosystem. Built for patients, health providers, and pharmacies across all 20 dzongkhags.
 
-## Get started
+## Tech Stack
 
-1. Install dependencies
+- **React Native** with TypeScript
+- **Expo SDK 54** with Expo Router (file-based routing)
+- **React Navigation** for navigation
+- **pnpm** as package manager
 
-   ```bash
-   npm install
-   ```
+## Project Structure
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+mobile/
+├── app/                       # File-based routes
+│   ├── _layout.tsx            # Root layout
+│   ├── modal.tsx              # Modal screen
+│   └── (tabs)/                # Tab-based navigation
+│       ├── _layout.tsx        # Tab layout
+│       ├── index.tsx          # Home tab
+│       └── explore.tsx        # Explore tab
+├── assets/
+│   └── images/                # App images
+├── components/                # Reusable components
+│   ├── ui/                    # Base UI components
+│   ├── external-link.tsx
+│   ├── haptic-tab.tsx
+│   ├── hello-wave.tsx
+│   ├── parallax-scroll-view.tsx
+│   ├── themed-text.tsx
+│   └── themed-view.tsx
+├── constants/
+│   └── theme.ts               # Theme configuration
+├── hooks/                     # Custom hooks
+│   ├── use-color-scheme.ts
+│   └── use-theme-color.ts
+└── scripts/
+    └── reset-project.js       # Project reset utility
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Getting Started
 
-## Learn more
+### Prerequisites
 
-To learn more about developing your project with Expo, look at the following resources:
+- [Node.js](https://nodejs.org/) (LTS)
+- [pnpm](https://pnpm.io/)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Install Dependencies
 
-## Join the community
+```bash
+pnpm install
+```
 
-Join our community of developers creating universal apps.
+### Start the App
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+pnpm start
+```
+
+This launches the Expo dev server. From there you can open the app in:
+
+- [Development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go)
+
+### Platform-Specific Commands
+
+```bash
+pnpm android    # Start on Android
+pnpm ios        # Start on iOS
+pnpm web        # Start on web
+```
+
+### Lint
+
+```bash
+pnpm lint
+```
+
+### Reset Project
+
+```bash
+pnpm reset-project
+```
+
+Moves starter code to `app-example/` and creates a blank `app/` directory.
+
+## Design Considerations
+
+- **Offline-first** — Functional without connectivity; syncs when available
+- **Bilingual** — Dzongkha (primary) and English interfaces
+- **Accessibility** — Voice-based interaction for low-literacy users
+- **Low-bandwidth** — Optimised for rural connectivity conditions
+- **SMS/USSD fallback** — Feature phone access planned
+
+## Related
+
+- [Root README](../README.md)
+- [Product Requirements](../docs/Product.md)
+- [Web App](../web/README.md)
