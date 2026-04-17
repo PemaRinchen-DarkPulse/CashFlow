@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# env
+.env
+.env.*
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# debug
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+
+# build
+dist/
+build/

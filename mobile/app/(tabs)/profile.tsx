@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Fonts } from '../../constants/theme';
 
-export default function ExploreScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Explore</Text>
+      <Text style={styles.text}>Profile</Text>
     </View>
   );
 }
