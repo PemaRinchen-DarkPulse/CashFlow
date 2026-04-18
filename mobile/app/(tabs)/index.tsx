@@ -36,6 +36,7 @@ import {
   ArrowRight,
 } from 'phosphor-react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 import { Colors, Fonts, Spacing, Radius } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
@@ -104,6 +105,8 @@ const MEDICATIONS = [
 // --- SCREEN ---
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
@@ -114,7 +117,9 @@ export default function HomeScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Image source={{ uri: PROFILE_AVATAR }} style={styles.avatar} />
+            <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(tabs)/profile')}>
+              <Image source={{ uri: PROFILE_AVATAR }} style={styles.avatar} />
+            </TouchableOpacity>
             <View>
               <Text style={styles.greeting}>Good morning</Text>
               <TouchableOpacity style={styles.locationRow}>

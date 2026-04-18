@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { House, Compass, CalendarCheck, ChatCircleDots, User } from 'phosphor-react-native';
+import { House, Folder, CalendarCheck, Pill, List } from 'phosphor-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { Platform } from 'react-native';
 
@@ -44,39 +44,45 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="records"
         options={{
-          title: 'Explore',
+          title: 'Records',
           tabBarIcon: ({ color, focused }) => (
-            <Compass size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+            <Folder size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
       <Tabs.Screen
-        name="bookings"
+        name="appointments"
         options={{
-          title: 'Bookings',
+          title: 'Appointment',
           tabBarIcon: ({ color, focused }) => (
             <CalendarCheck size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
       <Tabs.Screen
-        name="chat"
+        name="pharmacy"
         options={{
-          title: 'Chat',
+          title: 'Pharmacy',
           tabBarIcon: ({ color, focused }) => (
-            <ChatCircleDots size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+            <Pill size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="menu"
+        options={{
+          title: 'Menu',
+          tabBarIcon: ({ color, focused }) => (
+            <List size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <User size={24} color={color} weight={focused ? 'fill' : 'regular'} />
-          ),
+          href: null,
         }}
       />
     </Tabs>

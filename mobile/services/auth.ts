@@ -38,3 +38,7 @@ export async function register(data: {
 }): Promise<AuthResponse> {
   return api.post<AuthResponse>("/api/auth/register", data);
 }
+
+export async function verifyToken(token: string): Promise<{ user: AuthResponse["user"] }> {
+  return api.get<{ user: AuthResponse["user"] }>("/api/auth/me", token);
+}

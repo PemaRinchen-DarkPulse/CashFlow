@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Fonts } from '../../constants/theme';
 
-export default function BookingsScreen() {
+export default function RecordsScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Bookings</Text>
+      <Text style={styles.text}>Records</Text>
     </View>
   );
 }

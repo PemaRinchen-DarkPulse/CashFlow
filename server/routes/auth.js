@@ -2,6 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const User = require("../models/User");
+const auth = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -77,6 +78,11 @@ router.post("/login", async (req, res) => {
   } catch {
     res.status(500).json({ error: "Login failed" });
   }
+});
+
+// GET /api/auth/me – verify token & return current user
+router.get("/me", auth, async (req, res) => {
+  res.json({ user: req.user.toSafeJSON() });
 });
 
 module.exports = router;
