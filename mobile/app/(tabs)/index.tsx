@@ -3,7 +3,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Dimensions,
   Image,
@@ -12,11 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  MagnifyingGlass,
   MapPin,
   CaretDown,
   Bell,
   Phone,
+  User,
   CalendarBlank,
   Clock,
   Stethoscope,
@@ -36,6 +35,7 @@ import {
   SirenIcon,
   ArrowRight,
 } from 'phosphor-react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { Colors, Fonts, Spacing, Radius } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
@@ -96,6 +96,11 @@ const FACILITIES = [
   },
 ];
 
+const MEDICATIONS = [
+  { id: '1', name: 'Amlodipine', dosage: '5mg', time: '8:00 AM', taken: true },
+  { id: '2', name: 'Metformin', dosage: '500mg', time: '1:00 PM', taken: false },
+];
+
 // --- SCREEN ---
 
 export default function HomeScreen() {
@@ -125,124 +130,161 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Search ── */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBar}>
-            <MagnifyingGlass size={18} color={Colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search doctors, hospitals..."
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-          <TouchableOpacity style={styles.filterBtn}>
-            <Faders size={18} color={Colors.white} weight="bold" />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Priority Alert Banner ── */}
-        {ALERTS.length > 0 && (
-          <TouchableOpacity activeOpacity={0.85}>
-            <LinearGradient
-              colors={['#1A1A2E', '#2D2B55']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.alertBanner}
-            >
-              <View style={styles.alertBannerLeft}>
-                <View style={styles.alertPulse}>
-                  <View style={styles.alertPulseInner} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.alertBannerTitle}>
-                    {ALERTS.length} action{ALERTS.length > 1 ? 's' : ''} needed
-                  </Text>
-                  <Text style={styles.alertBannerSub}>
-                    {ALERTS[0].subtitle}
-                  </Text>
-                </View>
-              </View>
-              <CaretRight size={18} color="rgba(255,255,255,0.6)" />
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
-        {/* ── Alert Pills ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.alertPills}
+        {/* ── AI Vitals Card ── */}
+        <LinearGradient
+          colors={[Colors.primary, '#2563EB']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.vitalsCard}
         >
-          {ALERTS.map((a) => (
-            <TouchableOpacity
-              key={a.id}
-              style={[styles.alertPill, { borderColor: a.color + '30' }]}
-              activeOpacity={0.7}
-            >
-              <a.icon size={14} color={a.color} weight="fill" />
-              <Text style={[styles.alertPillText, { color: a.color }]}>
-                {a.title}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+          {/* Decorative blobs */}
+          <View style={styles.vitalsBlob1} />
+          <View style={styles.vitalsBlob2} />
+
+          {/* Top row: badge + score ring */}
+          <View style={styles.vitalsTopRow}>
+            <View style={{ flex: 1 }}>
+              <View style={styles.aiBadge}>
+                <View style={styles.aiBadgeDot} />
+                <Text style={styles.aiBadgeText}>AI ANALYSIS ACTIVE</Text>
+              </View>
+              <Text style={styles.vitalsHeadline}>Your vitals are{"\n"}looking great.</Text>
+            </View>
+
+            {/* Circular score */}
+            <View style={styles.scoreWrap}>
+              <Svg width={56} height={56}>
+                <Circle
+                  cx={28}
+                  cy={28}
+                  r={23}
+                  stroke="rgba(255,255,255,0.15)"
+                  strokeWidth={4.5}
+                  fill="none"
+                />
+                <Circle
+                  cx={28}
+                  cy={28}
+                  r={23}
+                  stroke="#34D399"
+                  strokeWidth={4.5}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 23}`}
+                  strokeDashoffset={`${2 * Math.PI * 23 * (1 - 0.92)}`}
+                  transform="rotate(-90 28 28)"
+                />
+              </Svg>
+              <Text style={styles.scoreText}>92</Text>
+            </View>
+          </View>
+
+          {/* Bottom stats row */}
+          <View style={styles.vitalsStats}>
+            <View style={styles.vitalsStat}>
+              <Text style={styles.vitalsStatLabel}>Heart</Text>
+              <Text style={styles.vitalsStatValue}>72 <Text style={styles.vitalsStatUnit}>bpm</Text></Text>
+            </View>
+            <View style={styles.vitalsStat}>
+              <Text style={styles.vitalsStatLabel}>Sleep</Text>
+              <Text style={styles.vitalsStatValue}>7<Text style={styles.vitalsStatUnit}>h </Text>20<Text style={styles.vitalsStatUnit}>m</Text></Text>
+            </View>
+            <View style={styles.vitalsStat}>
+              <Text style={styles.vitalsStatLabel}>Active</Text>
+              <Text style={styles.vitalsStatValue}>1.2 <Text style={styles.vitalsStatUnit}>kcal</Text></Text>
+            </View>
+          </View>
+        </LinearGradient>
 
         {/* ── Upcoming Consultation ── */}
         <SectionHeader title="Upcoming" count={3} />
-        <TouchableOpacity activeOpacity={0.9}>
-          <LinearGradient
-            colors={[Colors.primary, '#2563EB']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.consultCard}
-          >
-            {/* Decorative circles */}
-            <View style={styles.decorCircle1} />
-            <View style={styles.decorCircle2} />
-
-            <View style={styles.consultTop}>
-              <Image source={{ uri: DOCTOR_AVATAR }} style={styles.doctorImg} />
-              <View style={styles.consultInfo}>
-                <Text style={styles.consultName}>Dr. Tshering Dorji</Text>
-                <Text style={styles.consultSpec}>General Physician</Text>
-              </View>
-              <TouchableOpacity style={styles.phoneBtn}>
-                <Phone size={18} color={Colors.primary} weight="fill" />
-              </TouchableOpacity>
+        <View style={styles.consultCard}>
+          {/* Top row: avatar + name + badge */}
+          <View style={styles.consultTop}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitials}>KW</Text>
             </View>
-
-            <View style={styles.consultDivider} />
-
-            <View style={styles.consultBottom}>
-              <View style={styles.consultMeta}>
-                <CalendarBlank size={14} color="rgba(255,255,255,0.75)" />
-                <Text style={styles.consultMetaText}>Mon, 20 Apr</Text>
+            <View style={styles.consultInfo}>
+              <View style={styles.consultNameRow}>
+                <Text style={styles.consultName}>Dr. Karma Wangdi</Text>
+                <View style={styles.scheduledBadge}>
+                  <Text style={styles.scheduledBadgeText}>Scheduled</Text>
+                </View>
               </View>
-              <View style={styles.consultMetaDot} />
-              <View style={styles.consultMeta}>
-                <Clock size={14} color="rgba(255,255,255,0.75)" />
-                <Text style={styles.consultMetaText}>09:00 – 10:00</Text>
-              </View>
+              <Text style={styles.consultSpec}>General Physician</Text>
             </View>
-          </LinearGradient>
-        </TouchableOpacity>
+          </View>
 
-        {/* ── Specialities ── */}
-        <SectionHeader title="Specialities" />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.specList}
-        >
-          {SPECIALITIES.map((s, i) => (
-            <TouchableOpacity key={i} style={styles.specItem} activeOpacity={0.75}>
-              <LinearGradient colors={s.gradient} style={styles.specIcon}>
-                <s.icon size={24} color={Colors.primary} weight="duotone" />
-              </LinearGradient>
-              <Text style={styles.specLabel} numberOfLines={1}>{s.label}</Text>
+          {/* Meta row */}
+          <View style={styles.consultMetaRow}>
+            <View style={styles.consultMeta}>
+              <CalendarBlank size={14} color={Colors.textMuted} />
+              <Text style={styles.consultMetaText}>Today</Text>
+            </View>
+            <View style={styles.consultMeta}>
+              <User size={14} color={Colors.textMuted} />
+              <Text style={styles.consultMetaText}>2:30 PM</Text>
+            </View>
+            <View style={styles.consultMeta}>
+              <Phone size={14} color={Colors.textMuted} />
+              <Text style={styles.consultMetaText}>Video Call</Text>
+            </View>
+          </View>
+
+          {/* Action buttons */}
+          <View style={styles.consultActions}>
+            <TouchableOpacity style={styles.rescheduleBtn} activeOpacity={0.7}>
+              <Text style={styles.rescheduleBtnText}>Reschedule</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.joinCallBtn} activeOpacity={0.8}>
+              <Text style={styles.joinCallBtnText}>Join Call</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── Medications Today ── */}
+        <SectionHeader title="Medications Today" />
+        <View style={styles.medsContainer}>
+          {MEDICATIONS.map((med) => (
+            <View key={med.id} style={styles.medCard}>
+              <View style={styles.medInfo}>
+                <Text style={styles.medName}>{med.name}</Text>
+                <Text style={styles.medDetail}>{med.dosage} · {med.time}</Text>
+              </View>
+              {med.taken ? (
+                <View style={styles.takenBadge}>
+                  <Text style={styles.takenBadgeText}>Taken</Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.takeBadge} activeOpacity={0.7}>
+                  <Text style={styles.takeBadgeText}>Take</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ))}
-        </ScrollView>
+        </View>
+
+        {/* ── Quick Actions ── */}
+        <SectionHeader title="Quick Actions" />
+        <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+            <CalendarBlank size={24} color="#F97316" weight="fill" />
+            <Text style={styles.actionLabel}>Book</Text>
+            <Text style={styles.actionDesc}>Appointment</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+            <Phone size={24} color="#16A34A" weight="fill" />
+            <Text style={styles.actionLabel}>Consult</Text>
+            <Text style={styles.actionDesc}>Video/Audio</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+            <Warning size={24} color="#DC2626" weight="fill" />
+            <Text style={styles.actionLabel}>SOS</Text>
+            <Text style={styles.actionDesc}>Emergency</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── Nearby Facilities ── */}
         <SectionHeader title="Nearby Facilities" />
@@ -270,38 +312,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-
-        {/* ── Quick Actions ── */}
-        <SectionHeader title="Quick Actions" />
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
-            <LinearGradient
-              colors={[Colors.primary, '#2563EB']}
-              style={styles.actionIconWrap}
-            >
-              <VideoCamera size={22} color="#FFF" weight="fill" />
-            </LinearGradient>
-            <Text style={styles.actionLabel}>Teleconsult</Text>
-            <Text style={styles.actionDesc}>Talk to a specialist</Text>
-            <View style={styles.actionArrow}>
-              <ArrowRight size={14} color={Colors.primary} weight="bold" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
-            <LinearGradient
-              colors={['#EF4444', '#DC2626']}
-              style={styles.actionIconWrap}
-            >
-              <FirstAid size={22} color="#FFF" weight="fill" />
-            </LinearGradient>
-            <Text style={styles.actionLabel}>Emergency</Text>
-            <Text style={styles.actionDesc}>SOS one-tap alert</Text>
-            <View style={[styles.actionArrow, { backgroundColor: '#FEF2F2' }]}>
-              <ArrowRight size={14} color="#EF4444" weight="bold" />
-            </View>
-          </TouchableOpacity>
-        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -385,94 +395,107 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
 
-  // Search
-  searchRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 48,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...SHADOW_SM,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-  filterBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOW,
-  },
-
-  // Alert Banner
-  alertBanner: {
-    borderRadius: 16,
+  // AI Vitals Card
+  vitalsCard: {
+    borderRadius: 18,
     padding: 16,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  vitalsBlob1: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  vitalsBlob2: {
+    position: 'absolute',
+    bottom: -30,
+    left: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  vitalsTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  alertBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  alertPulse: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(239,68,68,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertPulseInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#EF4444',
-  },
-  alertBannerTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 14,
-    color: '#FFF',
-    letterSpacing: -0.2,
-  },
-  alertBannerSub: {
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 2,
-  },
-
-  // Alert Pills
-  alertPills: { gap: 8, marginBottom: 8, paddingRight: 24 },
-  alertPill: {
+  aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignSelf: 'flex-start',
     borderRadius: 20,
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 8,
   },
-  alertPillText: {
-    fontFamily: Fonts.semiBold,
+  aiBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#34D399',
+  },
+  aiBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: '#FFF',
+    letterSpacing: 0.5,
+  },
+  vitalsHeadline: {
+    fontFamily: Fonts.bold,
+    fontSize: 18,
+    color: '#FFF',
+    lineHeight: 23,
+    letterSpacing: -0.3,
+  },
+  scoreWrap: {
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scoreText: {
+    position: 'absolute',
+    fontFamily: Fonts.bold,
+    fontSize: 18,
+    color: '#FFF',
+  },
+  vitalsStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  vitalsStat: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+  },
+  vitalsStatLabel: {
+    fontFamily: Fonts.medium,
     fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 2,
+  },
+  vitalsStatValue: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: '#FFF',
+  },
+  vitalsStatUnit: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
   },
 
   // Section Header
@@ -504,77 +527,153 @@ const styles = StyleSheet.create({
 
   // Consultation Card
   consultCard: {
-    borderRadius: 20,
-    padding: 18,
-    overflow: 'hidden',
-    ...SHADOW,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...SHADOW_SM,
   },
-  decorCircle1: {
-    position: 'absolute',
-    top: -30,
-    right: -30,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  consultTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  avatarCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#E8F5E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  decorCircle2: {
-    position: 'absolute',
-    bottom: -20,
-    left: -20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  consultTop: { flexDirection: 'row', alignItems: 'center' },
-  doctorImg: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    marginRight: 14,
+  avatarInitials: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: '#4A7C59',
   },
   consultInfo: { flex: 1 },
+  consultNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   consultName: {
     fontFamily: Fonts.bold,
-    fontSize: 16,
-    color: '#FFF',
+    fontSize: 15,
+    color: Colors.textPrimary,
     letterSpacing: -0.2,
+  },
+  scheduledBadge: {
+    backgroundColor: '#FEF3E2',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  scheduledBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 11,
+    color: '#D97706',
   },
   consultSpec: {
     fontFamily: Fonts.regular,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.65)',
+    color: Colors.textMuted,
     marginTop: 2,
   },
-  phoneBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  consultDivider: {
-    height: 0,
-    marginVertical: 10,
-  },
-  consultBottom: {
+  consultMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  consultMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  consultMetaDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    marginHorizontal: 10,
-  },
+  consultMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   consultMetaText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.75)',
+    color: Colors.textSecondary,
+  },
+  consultActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  rescheduleBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rescheduleBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  joinCallBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  joinCallBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: '#FFF',
+  },
+
+  // Medications Today
+  medsContainer: {
+    gap: 10,
+  },
+  medCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...SHADOW_SM,
+  },
+  medInfo: {
+    flex: 1,
+  },
+  medName: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: Colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  medDetail: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  takenBadge: {
+    backgroundColor: '#E8F5E8',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  takenBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 12,
+    color: '#16A34A',
+  },
+  takeBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+  },
+  takeBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 12,
+    color: '#FFF',
   },
 
   // Specialities
@@ -644,44 +743,37 @@ const styles = StyleSheet.create({
   },
 
   // Quick Actions
-  actionsRow: { flexDirection: 'row', gap: 12 },
+  actionsRow: { flexDirection: 'row', gap: 10 },
   actionCard: {
-    flex: 1,
+    width: (Dimensions.get('window').width - 48 - 20) / 3,
+    height: (Dimensions.get('window').width - 48 - 20) / 3,
     backgroundColor: '#FFF',
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    ...SHADOW,
   },
   actionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
   },
   actionLabel: {
     fontFamily: Fonts.bold,
-    fontSize: 15,
+    fontSize: 13,
     color: Colors.textPrimary,
-    letterSpacing: -0.2,
+    textAlign: 'center',
+    marginTop: 8,
   },
   actionDesc: {
     fontFamily: Fonts.regular,
     fontSize: 11,
     color: Colors.textMuted,
-    marginTop: 2,
-    marginBottom: 12,
-  },
-  actionArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
+    marginTop: 1,
+    textAlign: 'center',
   },
 });
