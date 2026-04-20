@@ -21,4 +21,18 @@ const auth = async (req, res, next) => {
   }
 };
 
-module.exports = auth;
+// Role-based authorization middleware
+// Usage: router.get("/admin", auth, authorize("super_admin", "hospital_admin"), handler)
+const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied. Insufficient permissions" });
+    }
+    next();
+  };
+};
+
+module.exports = { auth, authorize };

@@ -4,6 +4,9 @@ require("dotenv").config();
 
 const sequelize = require("./config/database");
 
+// Import all models and set up associations
+require("./models");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 

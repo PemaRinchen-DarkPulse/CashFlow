@@ -1,8 +1,8 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
-const User = require("../models/User");
-const auth = require("../middleware/auth");
+const { User, roleProfileMap } = require("../models");
+const { auth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -15,33 +15,37 @@ const generateToken = (user) => {
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { name, cid, phone, email, password, dob, bloodType, location, role } =
-      req.body;
+    const { name, phone, email, password, role, profile } = req.body;
 
-    const existing = await User.findOne({
-      where: { [Op.or]: [{ cid }, { phone }] },
-    });
-    if (existing) {
-      return res
-        .status(409)
-        .json({ error: "User with this CID or phone already exists" });
+    const validRoles = [
+      "patient", "doctor", "receptionist", "hospital_admin",
+      "super_admin", "pharmacist", "lab_technician", "nurse",
+    ];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
     }
 
-    const user = await User.create({
-      name,
-      cid,
-      phone,
-      email,
-      password,
-      dob,
-      bloodType,
-      location,
-      role,
-    });
+    const existing = await User.findOne({ where: { phone } });
+    if (existing) {
+      return res.status(409).json({ error: "User with this phone already exists" });
+    }
+
+    const user = await User.create({ name, phone, email, password, role });
+
+    // Create the role-specific profile
+    const userRole = role || "patient";
+    const profileConfig = roleProfileMap[userRole];
+    if (profileConfig) {
+      await profileConfig.model.create({
+        userId: user.id,
+        ...(profile || {}),
+      });
+    }
 
     const token = generateToken(user);
     res.status(201).json({ token, user: user.toSafeJSON() });
   } catch (error) {
+    console.error("Registration error:", error);
     if (error.name === "SequelizeValidationError") {
       return res
         .status(400)
@@ -61,9 +65,7 @@ router.post("/login", async (req, res) => {
         .json({ error: "Phone/CID and password are required" });
     }
 
-    const user = await User.findOne({
-      where: { [Op.or]: [{ phone }, { cid: phone }] },
-    });
+    const user = await User.findOne({ where: { phone } });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }

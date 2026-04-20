@@ -1,39 +1,46 @@
 const express = require("express");
-const auth = require("../middleware/auth");
+const { auth } = require("../middleware/auth");
+const { roleProfileMap } = require("../models");
 
 const router = express.Router();
 
 // GET /api/user/profile
 router.get("/profile", auth, async (req, res) => {
-  res.json({ user: req.user.toSafeJSON() });
+  const user = req.user;
+  const profileConfig = roleProfileMap[user.role];
+  let profile = null;
+  if (profileConfig) {
+    profile = await profileConfig.model.findOne({ where: { userId: user.id } });
+  }
+  res.json({ user: user.toSafeJSON(), profile });
 });
 
 // PUT /api/user/profile
 router.put("/profile", auth, async (req, res) => {
   try {
-    const allowedFields = [
-      "name",
-      "email",
-      "phone",
-      "dob",
-      "bloodType",
-      "location",
-      "avatar",
-      "allergies",
-      "emergencyContactName",
-      "emergencyContactRelation",
-      "emergencyContactPhone",
-    ];
-
-    const updates = {};
-    for (const field of allowedFields) {
+    // Update core user fields
+    const userFields = ["name", "email", "phone"];
+    const userUpdates = {};
+    for (const field of userFields) {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        userUpdates[field] = req.body[field];
+      }
+    }
+    if (Object.keys(userUpdates).length > 0) {
+      await req.user.update(userUpdates);
+    }
+
+    // Update role-specific profile fields
+    const profileConfig = roleProfileMap[req.user.role];
+    let profile = null;
+    if (profileConfig && req.body.profile) {
+      profile = await profileConfig.model.findOne({ where: { userId: req.user.id } });
+      if (profile) {
+        await profile.update(req.body.profile);
       }
     }
 
-    await req.user.update(updates);
-    res.json({ user: req.user.toSafeJSON() });
+    res.json({ user: req.user.toSafeJSON(), profile });
   } catch (error) {
     if (error.name === "SequelizeValidationError") {
       return res

@@ -14,17 +14,6 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    cid: {
-      type: DataTypes.STRING,
-      unique: true,
-      allowNull: false,
-      comment: "Citizen ID number",
-    },
-    healthId: {
-      type: DataTypes.STRING,
-      unique: true,
-      comment: "App-generated health ID (e.g. BT-AIM-20260418-0042)",
-    },
     phone: {
       type: DataTypes.STRING,
       unique: true,
@@ -39,33 +28,17 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    dob: {
-      type: DataTypes.DATEONLY,
-    },
-    bloodType: {
-      type: DataTypes.STRING,
-    },
-    location: {
-      type: DataTypes.STRING,
-    },
-    avatar: {
-      type: DataTypes.STRING,
-    },
-    allergies: {
-      type: DataTypes.ARRAY(DataTypes.STRING),
-      defaultValue: [],
-    },
-    emergencyContactName: {
-      type: DataTypes.STRING,
-    },
-    emergencyContactRelation: {
-      type: DataTypes.STRING,
-    },
-    emergencyContactPhone: {
-      type: DataTypes.STRING,
-    },
     role: {
-      type: DataTypes.ENUM("patient", "health_provider", "pharmacy"),
+      type: DataTypes.ENUM(
+        "patient",
+        "doctor",
+        "receptionist",
+        "hospital_admin",
+        "super_admin",
+        "pharmacist",
+        "lab_technician",
+        "nurse"
+      ),
       defaultValue: "patient",
       allowNull: false,
     },
@@ -76,11 +49,6 @@ const User = sequelize.define(
       beforeCreate: async (user) => {
         if (user.password) {
           user.password = await bcrypt.hash(user.password, 10);
-        }
-        if (!user.healthId) {
-          const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-          const seq = String(Math.floor(Math.random() * 9999)).padStart(4, "0");
-          user.healthId = `BT-AIM-${date}-${seq}`;
         }
       },
       beforeUpdate: async (user) => {

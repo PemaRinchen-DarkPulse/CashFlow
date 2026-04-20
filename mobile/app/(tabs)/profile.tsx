@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../hooks/useAuth';
 import {
   User,
   PencilSimple,
@@ -74,6 +76,8 @@ const HEALTH_STATS = [
 // --- SCREEN ---
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { logout } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
 
@@ -251,7 +255,14 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Sign Out ── */}
-        <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          activeOpacity={0.7}
+          onPress={async () => {
+            await logout();
+            router.replace('/screens/login');
+          }}
+        >
           <SignOut size={20} color={Colors.error} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>

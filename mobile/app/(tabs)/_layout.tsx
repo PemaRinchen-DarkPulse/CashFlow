@@ -1,9 +1,15 @@
 import { Tabs } from 'expo-router';
-import { House, Folder, CalendarCheck, Pill, List } from 'phosphor-react-native';
+import { House, Folder, CalendarCheck, Pill, List, Buildings, UsersThree, Gear, UserList, ListNumbers } from 'phosphor-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { Platform } from 'react-native';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function TabLayout() {
+  const { user } = useAuth();
+  const role = (user as any)?.role;
+  const isSuperAdmin = role === 'super_admin';
+  const isReceptionist = role === 'receptionist';
+
   return (
     <Tabs
       screenOptions={{
@@ -34,6 +40,7 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Home — visible to all */}
       <Tabs.Screen
         name="index"
         options={{
@@ -43,33 +50,68 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      {/* Patients — receptionist only (2nd tab for receptionist) */}
+      <Tabs.Screen
+        name="patients"
+        options={{
+          title: 'Patients',
+          href: isReceptionist ? '/(tabs)/patients' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <UserList size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+
+      {/* Records — hidden for super_admin and receptionist */}
       <Tabs.Screen
         name="records"
         options={{
           title: 'Records',
+          href: isSuperAdmin || isReceptionist ? null : '/(tabs)/records',
           tabBarIcon: ({ color, focused }) => (
             <Folder size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
+
+      {/* Appointments — visible for regular users and receptionist */}
       <Tabs.Screen
         name="appointments"
         options={{
           title: 'Appointment',
+          href: isSuperAdmin ? null : '/(tabs)/appointments',
           tabBarIcon: ({ color, focused }) => (
             <CalendarCheck size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
+
+      {/* Queue — receptionist only (4th tab for receptionist) */}
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: 'Queue',
+          href: isReceptionist ? '/(tabs)/queue' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <ListNumbers size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+
+      {/* Pharmacy — hidden for super_admin and receptionist */}
       <Tabs.Screen
         name="pharmacy"
         options={{
           title: 'Pharmacy',
+          href: isSuperAdmin || isReceptionist ? null : '/(tabs)/pharmacy',
           tabBarIcon: ({ color, focused }) => (
             <Pill size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />
+
+      {/* Menu — visible for regular users and receptionist */}
       <Tabs.Screen
         name="menu"
         options={{
@@ -79,6 +121,49 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      {/* Super admin tabs — hidden for regular users */}
+      <Tabs.Screen
+        name="add-hospital"
+        options={{
+          title: 'Add Hospital',
+          href: isSuperAdmin ? '/(tabs)/add-hospital' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Buildings size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="manage-users"
+        options={{
+          title: 'Users',
+          href: isSuperAdmin ? '/(tabs)/manage-users' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <UsersThree size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="manage-pharmacy"
+        options={{
+          title: 'Pharmacy',
+          href: isSuperAdmin ? '/(tabs)/manage-pharmacy' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Pill size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          href: isSuperAdmin ? '/(tabs)/settings' : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Gear size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="profile"
         options={{
