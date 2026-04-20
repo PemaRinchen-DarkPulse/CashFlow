@@ -26,12 +26,13 @@ import {
   XCircle,
   NavigationArrow,
   X,
-  Buildings,
   Stethoscope,
   CaretDown,
   Check,
   User,
   NoteBlank,
+  CalendarCheck,
+  ClockClockwise,
 } from 'phosphor-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Colors, Fonts } from '../../constants/theme';
@@ -654,7 +655,6 @@ const BOOKING_DATES = (() => {
 })();
 
 type TabKey = 'upcoming' | 'past';
-type VisitType = 'in-person' | 'video';
 
 // --- SCREEN ---
 
@@ -664,54 +664,55 @@ export default function AppointmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Appointments</Text>
-          <Text style={styles.headerSubtitle}>Manage your healthcare visits</Text>
-        </View>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setDrawerVisible(true)}
-        >
-          <LinearGradient
-            colors={[Colors.primary, Colors.primaryMid]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.newBtn}
-          >
-            <Plus size={22} color="#FFF" weight="bold" />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Tab Switcher (underline style) ── */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'upcoming' && styles.tabActive]}
-          activeOpacity={0.7}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'past' && styles.tabActive]}
-          activeOpacity={0.7}
-          onPress={() => setActiveTab('past')}
-        >
-          <Text style={[styles.tabText, activeTab === 'past' && styles.tabTextActive]}>
-            Past
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Appointments</Text>
+            <Text style={styles.headerSubtitle}>Manage your healthcare visits</Text>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setDrawerVisible(true)}
+          >
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryMid]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.newBtn}
+            >
+              <Plus size={22} color="#FFF" weight="bold" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Tab Switcher ── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tabChip, activeTab === 'upcoming' && styles.tabChipActive]}
+            activeOpacity={0.7}
+            onPress={() => setActiveTab('upcoming')}
+          >
+            <CalendarCheck size={16} color={activeTab === 'upcoming' ? '#FFF' : Colors.textMuted} weight={activeTab === 'upcoming' ? 'fill' : 'regular'} />
+            <Text style={[styles.tabChipText, activeTab === 'upcoming' && styles.tabChipTextActive]}>
+              Upcoming
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabChip, activeTab === 'past' && styles.tabChipActive]}
+            activeOpacity={0.7}
+            onPress={() => setActiveTab('past')}
+          >
+            <ClockClockwise size={16} color={activeTab === 'past' ? '#FFF' : Colors.textMuted} weight={activeTab === 'past' ? 'fill' : 'regular'} />
+            <Text style={[styles.tabChipText, activeTab === 'past' && styles.tabChipTextActive]}>
+              Past
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
         {/* ── Appointment Cards ── */}
         {activeTab === 'upcoming' ? (
           UPCOMING_APPOINTMENTS.length > 0 ? (
@@ -729,7 +730,7 @@ export default function AppointmentsScreen() {
           <EmptyState message="No past appointments" />
         )}
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: Platform.OS === 'ios' ? 100 : 80 }} />
       </ScrollView>
 
       {/* ── Booking Drawer ── */}
@@ -748,15 +749,18 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
   const [showDepartments, setShowDepartments] = useState(false);
   const [facility, setFacility] = useState('');
   const [showFacilities, setShowFacilities] = useState(false);
-  const [visitType, setVisitType] = useState<VisitType>('in-person');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [reason, setReason] = useState('');
   const drawerScrollRef = useRef<ScrollView>(null);
+  const drawerRef = useRef<View>(null);
+  const facilityBtnRef = useRef<View>(null);
+  const departmentBtnRef = useRef<View>(null);
+  const [dropdownLayout, setDropdownLayout] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const canSubmit = department && (visitType === 'video' || facility) && selectedDate && selectedTime;
+  const canSubmit = department && facility && selectedDate && selectedTime;
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -771,7 +775,6 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
     setShowDepartments(false);
     setFacility('');
     setShowFacilities(false);
-    setVisitType('in-person');
     setSelectedDate(null);
     setSelectedTime(null);
     setShowDatePicker(false);
@@ -792,6 +795,19 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
   const closeAllDropdowns = () => {
     setShowDepartments(false);
     setShowFacilities(false);
+    setDropdownLayout(null);
+  };
+
+  const openDropdown = (ref: React.RefObject<any>, which: 'facility' | 'department') => {
+    closeAllDropdowns();
+    ref.current?.measureInWindow((x: number, y: number, w: number, h: number) => {
+      // Get drawer position to calculate relative offset
+      drawerRef.current?.measureInWindow((dx: number, dy: number) => {
+        setDropdownLayout({ top: y - dy + h + 4, left: x - dx, width: w });
+        if (which === 'facility') setShowFacilities(true);
+        else setShowDepartments(true);
+      });
+    });
   };
 
   return (
@@ -804,7 +820,7 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
     >
       <View style={dStyles.overlay}>
         <Pressable style={dStyles.backdrop} onPress={handleClose} />
-        <View style={dStyles.drawer}>
+        <View style={dStyles.drawer} ref={drawerRef}>
           {/* Handle bar */}
           <View style={dStyles.handleBar} />
 
@@ -827,91 +843,32 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-            {/* Visit Type */}
-            <Text style={dStyles.label}>Visit Type</Text>
-            <View style={dStyles.visitTypeRow}>
-              <TouchableOpacity
-                style={[dStyles.visitTypeBtn, visitType === 'in-person' && dStyles.visitTypeBtnActive]}
-                activeOpacity={0.7}
-                onPress={() => setVisitType('in-person')}
-              >
-                <Buildings size={18} color={visitType === 'in-person' ? Colors.primary : Colors.textMuted} weight={visitType === 'in-person' ? 'fill' : 'regular'} />
-                <Text style={[dStyles.visitTypeText, visitType === 'in-person' && dStyles.visitTypeTextActive]}>In-Person</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[dStyles.visitTypeBtn, visitType === 'video' && dStyles.visitTypeBtnActive]}
-                activeOpacity={0.7}
-                onPress={() => setVisitType('video')}
-              >
-                <VideoCamera size={18} color={visitType === 'video' ? Colors.primary : Colors.textMuted} weight={visitType === 'video' ? 'fill' : 'regular'} />
-                <Text style={[dStyles.visitTypeText, visitType === 'video' && dStyles.visitTypeTextActive]}>Video Call</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Facility (in-person only) */}
-            {visitType === 'in-person' && (
-              <>
-                <Text style={dStyles.label}>Facility</Text>
-                <View style={{ zIndex: 20 }}>
-                  <TouchableOpacity
-                    style={dStyles.dropdown}
-                    activeOpacity={0.7}
-                    onPress={() => { setShowFacilities(!showFacilities); setShowDepartments(false); }}
-                  >
-                    <MapPin size={16} color={Colors.textMuted} />
-                    <Text style={[dStyles.dropdownText, !facility && dStyles.placeholder]}>{facility || 'Select facility'}</Text>
-                    <CaretDown size={14} color={Colors.textMuted} />
-                  </TouchableOpacity>
-                  {showFacilities && (
-                    <View style={dStyles.optionsList}>
-                      <ScrollView nestedScrollEnabled bounces={false} showsVerticalScrollIndicator={true}>
-                        {FACILITIES.map((f) => (
-                          <TouchableOpacity
-                            key={f}
-                            style={[dStyles.optionItem, facility === f && dStyles.optionItemActive]}
-                            activeOpacity={0.7}
-                            onPress={() => { setFacility(f); setShowFacilities(false); }}
-                          >
-                            <Text style={[dStyles.optionText, facility === f && dStyles.optionTextActive]}>{f}</Text>
-                            {facility === f && <Check size={14} color={Colors.primary} weight="bold" />}
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
+            {/* Facility */}
+            <Text style={dStyles.label}>Facility</Text>
+                <View ref={facilityBtnRef}>
+                <TouchableOpacity
+                  style={dStyles.dropdown}
+                  activeOpacity={0.7}
+                  onPress={() => showFacilities ? closeAllDropdowns() : openDropdown(facilityBtnRef, 'facility')}
+                >
+                  <MapPin size={16} color={Colors.textMuted} />
+                  <Text style={[dStyles.dropdownText, !facility && dStyles.placeholder]}>{facility || 'Select facility'}</Text>
+                  <CaretDown size={14} color={Colors.textMuted} />
+                </TouchableOpacity>
                 </View>
-              </>
-            )}
 
             {/* Department */}
             <Text style={dStyles.label}>Department</Text>
-            <View style={{ zIndex: 10 }}>
-              <TouchableOpacity
-                style={dStyles.dropdown}
-                activeOpacity={0.7}
-                onPress={() => { setShowDepartments(!showDepartments); setShowFacilities(false); }}
-              >
-                <Stethoscope size={16} color={Colors.textMuted} />
-                <Text style={[dStyles.dropdownText, !department && dStyles.placeholder]}>{department || 'Select department'}</Text>
-                <CaretDown size={14} color={Colors.textMuted} />
-              </TouchableOpacity>
-              {showDepartments && (
-                <View style={dStyles.optionsList}>
-                  <ScrollView nestedScrollEnabled bounces={false} showsVerticalScrollIndicator={true}>
-                    {SPECIALTIES.map((s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={[dStyles.optionItem, department === s && dStyles.optionItemActive]}
-                        activeOpacity={0.7}
-                        onPress={() => { setDepartment(s); setShowDepartments(false); }}
-                      >
-                        <Text style={[dStyles.optionText, department === s && dStyles.optionTextActive]}>{s}</Text>
-                        {department === s && <Check size={14} color={Colors.primary} weight="bold" />}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
+            <View ref={departmentBtnRef}>
+            <TouchableOpacity
+              style={dStyles.dropdown}
+              activeOpacity={0.7}
+              onPress={() => showDepartments ? closeAllDropdowns() : openDropdown(departmentBtnRef, 'department')}
+            >
+              <Stethoscope size={16} color={Colors.textMuted} />
+              <Text style={[dStyles.dropdownText, !department && dStyles.placeholder]}>{department || 'Select department'}</Text>
+              <CaretDown size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
             </View>
 
             {/* Date & Time */}
@@ -986,17 +943,10 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
                   <Stethoscope size={14} color={Colors.textMuted} />
                   <Text style={dStyles.summaryText}>{department}</Text>
                 </View>
-                {visitType === 'in-person' && facility ? (
-                  <View style={dStyles.summaryRow}>
-                    <MapPin size={14} color={Colors.textMuted} />
-                    <Text style={dStyles.summaryText}>{facility}</Text>
-                  </View>
-                ) : (
-                  <View style={dStyles.summaryRow}>
-                    <VideoCamera size={14} color={Colors.textMuted} />
-                    <Text style={dStyles.summaryText}>Video Call</Text>
-                  </View>
-                )}
+                <View style={dStyles.summaryRow}>
+                  <MapPin size={14} color={Colors.textMuted} />
+                  <Text style={dStyles.summaryText}>{facility}</Text>
+                </View>
                 <View style={dStyles.summaryRow}>
                   <CalendarBlank size={14} color={Colors.textMuted} />
                   <Text style={dStyles.summaryText}>{selectedDate ? formatDate(selectedDate) : ''} at {selectedTime ? formatTime(selectedTime) : ''}</Text>
@@ -1017,6 +967,47 @@ function BookingDrawer({ visible, onClose }: { visible: boolean; onClose: () => 
               <Text style={dStyles.confirmBtnText}>Confirm Appointment</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Dropdown overlay — rendered outside ScrollView so scrolling works */}
+          {(showFacilities || showDepartments) && dropdownLayout && (
+            <>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={closeAllDropdowns}
+              />
+              <View
+                style={[
+                  dStyles.optionsList,
+                  {
+                    top: dropdownLayout.top,
+                    left: dropdownLayout.left,
+                    width: dropdownLayout.width,
+                  },
+                ]}
+              >
+                <ScrollView bounces={false} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                  {(showFacilities ? FACILITIES : SPECIALTIES).map((item) => {
+                    const isActive = showFacilities ? facility === item : department === item;
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        style={[dStyles.optionItem, isActive && dStyles.optionItemActive]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          if (showFacilities) setFacility(item);
+                          else setDepartment(item);
+                          closeAllDropdowns();
+                        }}
+                      >
+                        <Text style={[dStyles.optionText, isActive && dStyles.optionTextActive]}>{item}</Text>
+                        {isActive && <Check size={14} color={Colors.primary} weight="bold" />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -1094,27 +1085,6 @@ const dStyles = StyleSheet.create({
     color: Colors.textMuted,
   },
 
-  // Visit type
-  visitTypeRow: { flexDirection: 'row', gap: 10 },
-  visitTypeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#FFF',
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
-  visitTypeBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  visitTypeText: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.textMuted },
-  visitTypeTextActive: { color: Colors.primary },
-
   // Dropdown
   dropdown: {
     flexDirection: 'row',
@@ -1131,23 +1101,21 @@ const dStyles = StyleSheet.create({
   dropdownText: { flex: 1, fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.textPrimary },
   placeholder: { color: Colors.textMuted, fontFamily: Fonts.medium },
 
-  // Options
+  // Options (absolute overlay dropdown — rendered outside ScrollView)
   optionsList: {
     position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    maxHeight: 205,
+    maxHeight: 5 * 44,
     backgroundColor: '#FFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginTop: 4,
-    elevation: 5,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    overflow: 'hidden',
+    zIndex: 100,
   },
   optionItem: {
     flexDirection: 'row',
@@ -1233,7 +1201,7 @@ const dStyles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 13,
     color: Colors.textPrimary,
-    minHeight: 60,
+    minHeight: 100,
     padding: 0,
   },
 
@@ -1407,7 +1375,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
     marginBottom: 8,
     marginTop: 8,
   },
@@ -1431,38 +1398,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Tab Bar (underline style)
+  // Tab Bar (chip style)
   tabBar: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     marginBottom: 16,
+    gap: 8,
   },
-  tab: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2.5,
-    borderBottomColor: 'transparent',
+  tabChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  tabActive: {
-    borderBottomColor: Colors.primary,
+  tabChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  tabText: {
+  tabChipText: {
     fontFamily: Fonts.semiBold,
-    fontSize: 15,
+    fontSize: 12,
     color: Colors.textMuted,
   },
-  tabTextActive: {
-    color: Colors.primary,
+  tabChipTextActive: {
+    color: '#FFF',
   },
 
   // Card
   card: {
     backgroundColor: '#FFF',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
   },
