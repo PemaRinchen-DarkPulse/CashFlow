@@ -38,7 +38,7 @@ export function PageLoader() {
         <Logo size={56} showWordmark={false} />
       </div>
       <p className="mt-6 text-sm font-medium tracking-[0.2em] text-muted-foreground uppercase">
-        Urban Aid Bhutan
+        AiMedicare Bhutan
       </p>
     </div>
   );

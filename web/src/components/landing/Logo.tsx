@@ -26,7 +26,7 @@ export function Logo({ size = 36, showWordmark = true }: LogoProps) {
       {showWordmark && (
         <div className="flex flex-col leading-none">
           <span className="font-display text-base font-bold tracking-tight text-foreground">
-            Urban Aid
+            AiMedicare
           </span>
           <span className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
             Bhutan

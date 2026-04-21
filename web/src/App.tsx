@@ -1,31 +1,25 @@
-import { Navbar } from "@/components/landing/Navbar";
-import { Hero } from "@/components/landing/Hero";
-import { Services } from "@/components/landing/Services";
-import { HowItWorks } from "@/components/landing/HowItWorks";
-import { Stats } from "@/components/landing/Stats";
-import { About } from "@/components/landing/About";
-import { Testimonials } from "@/components/landing/Testimonials";
-import { CtaBanner } from "@/components/landing/CtaBanner";
-import { Footer } from "@/components/landing/Footer";
-import { PageLoader } from "@/components/landing/PageLoader";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
 
-export default function App() {
+function App() {
   return (
-    <>
-      <PageLoader />
-      <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-        <Navbar />
-        <main>
-          <Hero />
-          <Services />
-          <HowItWorks />
-          <Stats />
-          <About />
-          <Testimonials />
-          <CtaBanner />
-        </main>
-        <Footer />
-      </div>
-    </>
+    <React.Fragment>
+      <Toaster position="top-center" richColors />
+      <Router>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signup" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          
+          {/* Catch-all route for 404 errors */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </React.Fragment>
   );
 }
+
+export default App;

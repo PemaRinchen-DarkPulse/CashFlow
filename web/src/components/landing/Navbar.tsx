@@ -31,7 +31,7 @@ export function Navbar() {
       }`}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a href="#home" aria-label="Urban Aid Bhutan home">
+        <a href="#home" aria-label="AiMedicare Bhutan home">
           <Logo />
         </a>
 
@@ -53,7 +53,9 @@ export function Navbar() {
             size="sm"
             className="hidden md:inline-flex h-10 px-5 text-sm gradient-primary text-primary-foreground hover:opacity-95 shadow-elegant"
           >
-            <a href="#contact">Request Help</a>
+            <a href="/login" className="flex items-center gap-2">
+              Log In
+            </a>
           </Button>
           <button
             type="button"
@@ -89,8 +91,8 @@ export function Navbar() {
               size="sm"
               className="mt-2 h-11 px-5 text-sm gradient-primary text-primary-foreground shadow-elegant"
             >
-              <a href="#contact" onClick={() => setOpen(false)}>
-                Request Help
+              <a href="/login" onClick={() => setOpen(false)}>
+                Log In
               </a>
             </Button>
           </nav>

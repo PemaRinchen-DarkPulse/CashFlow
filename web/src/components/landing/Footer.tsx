@@ -93,8 +93,8 @@ export function Footer() {
               </li>
               <li className="flex items-start gap-2.5">
                 <Mail className="mt-0.5 h-4 w-4 flex-none text-primary" />
-                <a href="mailto:hello@urbanaidbhutan.bt" className="hover:text-primary">
-                  hello@urbanaidbhutan.bt
+                <a href="mailto:hello@AiMedicarebhutan.bt" className="hover:text-primary">
+                  hello@AiMedicarebhutan.bt
                 </a>
               </li>
               <li className="flex items-start gap-2.5">
@@ -108,7 +108,7 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col items-center justify-between gap-3 border-t border-border/70 pt-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} Urban Aid Bhutan. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} AiMedicare Bhutan. All rights reserved.</p>
           <p className="flex items-center gap-2">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
             Made with care in the Land of the Thunder Dragon

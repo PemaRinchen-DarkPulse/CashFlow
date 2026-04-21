@@ -14,7 +14,7 @@ const TESTIMONIALS: Testimonial[] = [
     role: "Resident · Thimphu",
     initials: "TD",
     quote:
-      "I reported a broken streetlight near my home and it was fixed in 48 hours. Urban Aid finally makes the city listen.",
+      "I reported a broken streetlight near my home and it was fixed in 48 hours. AiMedicare finally makes the city listen.",
   },
   {
     name: "Karma Yangzom",

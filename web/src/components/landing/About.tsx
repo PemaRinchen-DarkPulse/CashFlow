@@ -18,7 +18,7 @@ export function About() {
             <span className="text-gradient">Land of the Thunder Dragon</span>
           </h2>
           <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Urban Aid Bhutan is a mission-driven civic tech initiative bringing modern, efficient
+            AiMedicare Bhutan is a mission-driven civic tech initiative bringing modern, efficient
             services to Bhutan's growing cities. We blend community wisdom with smart infrastructure
             so progress never comes at the cost of identity.
           </p>

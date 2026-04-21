@@ -26,7 +26,7 @@ export function CtaBanner() {
                   Join us in building better cities.
                 </h2>
                 <p className="mt-4 max-w-xl text-sm opacity-90 sm:text-base">
-                  Whether you're a citizen, official, or community partner — Urban Aid Bhutan gives
+                  Whether you're a citizen, official, or community partner — AiMedicare Bhutan gives
                   you the tools to make change visible.
                 </p>
               </div>
