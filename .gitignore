@@ -56,6 +56,10 @@ build/
 out/
 .cache/
 *.tgz
+.expo/
+web-build/
+dist-ssr/
+.nitro/
 
 # coverage & test output
 coverage/
