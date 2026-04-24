@@ -9,10 +9,10 @@ const QUICK = [
 ];
 
 const SERVICES_L = [
-  { label: "Waste Management", href: "#services" },
-  { label: "Issue Reporting", href: "#services" },
-  { label: "Emergency Help", href: "#services" },
-  { label: "Community Programs", href: "#services" },
+  { label: "Health Records", href: "#services" },
+  { label: "Teleconsultation", href: "#services" },
+  { label: "Pharmacy Fulfillment", href: "#services" },
+  { label: "Emergency SOS", href: "#services" },
 ];
 
 const SOCIALS = [
@@ -30,7 +30,7 @@ export function Footer() {
           <div>
             <Logo />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Building smarter, kinder cities across Bhutan — one neighborhood at a time.
+              Extending Bhutan's free public healthcare to every citizen, bridging geography and care.
             </p>
             <div className="mt-5 flex gap-2">
               {SOCIALS.map((s) => (

@@ -11,24 +11,24 @@ type Testimonial = {
 const TESTIMONIALS: Testimonial[] = [
   {
     name: "Tenzin Dorji",
-    role: "Resident · Thimphu",
+    role: "Resident · Lhuntse",
     initials: "TD",
     quote:
-      "I reported a broken streetlight near my home and it was fixed in 48 hours. AiMedicare finally makes the city listen.",
+      "I consulted a specialist in Thimphu right from my village BHU. AiMedicare connects us all.",
   },
   {
     name: "Karma Yangzom",
-    role: "Community Leader · Paro",
+    role: "Pharmacist · Paro",
     initials: "KY",
     quote:
-      "Organizing volunteer drives became effortless. Our last clean-up brought together 200+ neighbors.",
+      "We receive instant digital prescriptions and our inventory manages itself. It's a game changer.",
   },
   {
-    name: "Sonam Wangchuk",
-    role: "Engineer · Phuentsholing",
+    name: "Dr. Sonam Wangchuk",
+    role: "Physician · JDWNRH",
     initials: "SW",
     quote:
-      "The infrastructure dashboards give my team real visibility. We're catching issues before they become emergencies.",
+      "I see the full patient history before I even speak to them. No health records are lost anymore.",
   },
 ];
 
@@ -38,10 +38,10 @@ export function Testimonials() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">
-            Voices from our cities
+            Voices from our clinics
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Loved by citizens <span className="text-gradient">across Bhutan</span>
+            Empowering citizens <span className="text-gradient">across Bhutan</span>
           </h2>
         </Reveal>
 

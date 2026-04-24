@@ -1,4 +1,4 @@
-import { ClipboardEdit, Cog, CheckCircle2, Star, type LucideIcon } from "lucide-react";
+import { Activity, Stethoscope, FileText, Pill, type LucideIcon } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 type Step = { num: string; icon: LucideIcon; title: string; desc: string };
@@ -6,27 +6,27 @@ type Step = { num: string; icon: LucideIcon; title: string; desc: string };
 const STEPS: Step[] = [
   {
     num: "01",
-    icon: ClipboardEdit,
-    title: "Report or Request",
-    desc: "Submit an issue or service request in seconds with photos and your location.",
+    icon: Activity,
+    title: "Symptom Check",
+    desc: "Open AiMedicare and let the AI symptom checker guide you to the right care level.",
   },
   {
     num: "02",
-    icon: Cog,
-    title: "Processing",
-    desc: "Our team routes your request to the right municipal department for action.",
+    icon: Stethoscope,
+    title: "Consultation",
+    desc: "Provider reviews your longitudinal health history before you even step in.",
   },
   {
     num: "03",
-    icon: CheckCircle2,
-    title: "Resolution",
-    desc: "Get real-time updates and confirmation when the issue is fully resolved.",
+    icon: FileText,
+    title: "Digital Prescription",
+    desc: "Your doctor issues an instant, paperless prescription to your app and pharmacy.",
   },
   {
     num: "04",
-    icon: Star,
-    title: "Feedback",
-    desc: "Share your thoughts on the resolution to help us improve municipal services.",
+    icon: Pill,
+    title: "Dispensary Fulfillment",
+    desc: "Verify identity via QR to safely collect medicines labelled in Dzongkha and English.",
   },
 ];
 
@@ -44,7 +44,7 @@ export function HowItWorks() {
             How it works
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            From report to resolution in <span className="text-gradient">four simple steps</span>
+            From symptoms to care in <span className="text-gradient">four simple steps</span>
           </h2>
         </Reveal>
 

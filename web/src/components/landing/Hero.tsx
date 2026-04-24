@@ -25,14 +25,14 @@ export function Hero() {
             style={{ animationDelay: "0.05s" }}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span className="tracking-wide uppercase">Smart City Initiative · Bhutan</span>
+            <span className="tracking-wide uppercase">Bhutan's Digital Health Ecosystem</span>
           </div>
 
           <h1
             className="mt-6 text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl xl:text-7xl animate-fade-in-up"
             style={{ animationDelay: "0.15s" }}
           >
-            Empowering <span className="text-gradient">Smarter Cities</span>
+            Bridging Care <span className="text-gradient">Everywhere</span>
             <br className="hidden sm:block" /> in Bhutan
           </h1>
 
@@ -40,8 +40,7 @@ export function Hero() {
             className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg animate-fade-in-up"
             style={{ animationDelay: "0.25s" }}
           >
-            Connecting communities with efficient urban services and solutions — from waste
-            management to emergency response — built with care for the Land of the Thunder Dragon.
+            A three-way platform connecting patients, health providers, and pharmacies down to the most remote valleys, built on Gross National Happiness values.
           </p>
 
           <div
@@ -89,9 +88,9 @@ export function Hero() {
             style={{ animationDelay: "0.45s" }}
           >
             {[
-              { k: "500+", v: "Issues Resolved" },
-              { k: "10k+", v: "Active Citizens" },
-              { k: "24/7", v: "Support" },
+              { k: "100%", v: "Cost Free Care" },
+              { k: "20+", v: "Dzongkhags Reached" },
+              { k: "24/7", v: "Teleconsultation" },
             ].map((s) => (
               <div key={s.v} className="border-l-2 border-primary/30 pl-4">
                 <dt className="font-display text-2xl font-bold text-foreground">{s.k}</dt>

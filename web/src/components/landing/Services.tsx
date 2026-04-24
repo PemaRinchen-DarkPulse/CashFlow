@@ -1,10 +1,10 @@
 import {
-  Trash2,
-  Megaphone,
-  Siren,
-  Users,
-  Building2,
-  HandHeart,
+  FileText,
+  Video,
+  Hospital,
+  ShieldAlert,
+  Leaf,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import { Reveal } from "./Reveal";
@@ -17,34 +17,34 @@ type Service = {
 
 const SERVICES: Service[] = [
   {
-    icon: Trash2,
-    title: "Waste Management",
-    desc: "Smart collection routes, recycling drives and clean-city scheduling for greener neighborhoods.",
+    icon: FileText,
+    title: "Longitudinal Health Records",
+    desc: "A single secure health ID connecting patient history across all BHUs and hospitals.",
   },
   {
-    icon: Megaphone,
-    title: "Public Issue Reporting",
-    desc: "Report potholes, streetlights, and civic concerns in seconds — track progress until resolved.",
+    icon: Video,
+    title: "Virtual Teleconsultation",
+    desc: "Connecting rural health workers directly with specialists in Thimphu and Paro.",
   },
   {
-    icon: Siren,
-    title: "Emergency Assistance",
-    desc: "One-tap connect to local responders for medical, fire, and safety emergencies, 24/7.",
+    icon: Hospital,
+    title: "Digital Pharmacy Fulfillment",
+    desc: "Real-time drug inventory tracking and instant digital prescriptions to local pharmacies.",
   },
   {
-    icon: Users,
-    title: "Community Programs",
-    desc: "Join clean-up campaigns, cultural drives and volunteer programs across your dzongkhag.",
+    icon: ShieldAlert,
+    title: "AI CDS & Emergency SOS",
+    desc: "Clinical Decision Support for Community Health Workers during remote medical emergencies.",
   },
   {
-    icon: Building2,
-    title: "Smart Infrastructure",
-    desc: "Real-time data on transit, utilities and public spaces to make daily city life smoother.",
+    icon: Activity,
+    title: "NCD & Wellness Self-Monitoring",
+    desc: "Track critical vitals with culturally grounded insights aligning with Gross National Happiness.",
   },
   {
-    icon: HandHeart,
-    title: "Civic Engagement",
-    desc: "Vote on local proposals, share ideas, and help shape policies that build better cities.",
+    icon: Leaf,
+    title: "Sowa Rigpa Integration",
+    desc: "Bridging the traditional medicine system with allopathic care inside one protected file.",
   },
 ];
 
@@ -57,11 +57,10 @@ export function Services() {
             What we do
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            City services, reimagined for <span className="text-gradient">every citizen</span>
+            Seamless healthcare, reimagined for <span className="text-gradient">every citizen</span>
           </h2>
           <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            A unified platform for the everyday systems that keep Bhutanese cities clean, safe, and
-            connected.
+            A unified platform integrating health providers, patients, and pharmacies across Bhutan.
           </p>
         </Reveal>
 

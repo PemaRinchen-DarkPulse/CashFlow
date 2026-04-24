@@ -3,10 +3,10 @@ import { useInView, useCountUp } from "@/hooks/use-in-view";
 type Stat = { value: number; suffix: string; label: string };
 
 const STATS: Stat[] = [
-  { value: 500, suffix: "+", label: "Issues Resolved" },
-  { value: 10000, suffix: "+", label: "Active Users" },
-  { value: 20, suffix: "+", label: "Districts Served" },
-  { value: 24, suffix: "/7", label: "Citizen Support" },
+  { value: 20, suffix: "", label: "Dzongkhags Reached" },
+  { value: 100, suffix: "%", label: "Free Healthcare" },
+  { value: 3, suffix: " Nodes", label: "Health Eco-System" },
+  { value: 24, suffix: "/7", label: "Telecare Support" },
 ];
 
 export function Stats() {

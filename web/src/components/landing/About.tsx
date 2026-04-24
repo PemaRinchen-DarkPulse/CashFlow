@@ -2,8 +2,8 @@ import { CheckCircle2, Heart, Mountain } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 const POINTS = [
-  "Built with and for Bhutanese communities",
-  "Citizen-first, transparency by default",
+  "Equitable access to free healthcare",
+  "Full data sovereignty residing locally",
   "Aligned with Gross National Happiness values",
 ];
 
@@ -18,9 +18,7 @@ export function About() {
             <span className="text-gradient">Land of the Thunder Dragon</span>
           </h2>
           <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
-            AiMedicare Bhutan is a mission-driven civic tech initiative bringing modern, efficient
-            services to Bhutan's growing cities. We blend community wisdom with smart infrastructure
-            so progress never comes at the cost of identity.
+            AiMedicare Bhutan is a mission-driven health ecosystem bridging geographic hurdles. Connecting remote villages to referral hospitals, we blend traditional Sowa Rigpa with modern clinical support so every citizen thrives.
           </p>
 
           <ul className="mt-8 space-y-3">

@@ -20,14 +20,13 @@ export function CtaBanner() {
             <div className="relative grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-80">
-                  Join the movement
+                  Join the health revolution
                 </p>
                 <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-                  Join us in building better cities.
+                  Step into integrated healthcare.
                 </h2>
                 <p className="mt-4 max-w-xl text-sm opacity-90 sm:text-base">
-                  Whether you're a citizen, official, or community partner — AiMedicare Bhutan gives
-                  you the tools to make change visible.
+                  Whether you're a patient, doctor, or pharmacist — AiMedicare Bhutan brings the whole care ecosystem to your fingertips.
                 </p>
               </div>
 
