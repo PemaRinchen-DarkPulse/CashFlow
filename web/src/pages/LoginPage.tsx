@@ -1,13 +1,47 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { login, register } from '../services/api'
 import './login.css'
 import loginImg from '../assets/login.jpg'
 
 export default function LoginPage() {
+  const navigate = useNavigate()
   const [isSignUp, setIsSignUp] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || (isSignUp && !name)) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isSignUp) {
+        const data = await register({ name, email, password });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        toast.success('Account created successfully');
+        navigate('/dashboard');
+      } else {
+        const data = await login({ email, password });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        toast.success('Logged in successfully');
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-page">
@@ -38,12 +72,9 @@ export default function LoginPage() {
                 : 'Enter your personal details and start your journey with us'}
             </p>
 
-            <button
-              className="login-btn-outline"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp ? 'SIGN IN' : 'SIGN UP'}
-            </button>
+              <button className="login-btn-outline" onClick={() => setIsSignUp(!isSignUp)} disabled={loading}>
+                {isSignUp ? 'SIGN IN' : 'SIGN UP'}
+              </button>
 
             {/* Decorative medical icons */}
             <div className="login-decor login-decor--pulse">
@@ -89,7 +120,7 @@ export default function LoginPage() {
               <span>or use your email</span>
             </div>
 
-            <form className="login-form" onSubmit={e => e.preventDefault()}>
+            <form className="login-form" onSubmit={handleSubmit}>
               {isSignUp && (
                 <div className="login-input-group">
                   <div className="login-input-icon">
@@ -163,15 +194,15 @@ export default function LoginPage() {
                 <a href="#" className="login-forgot">Forgot your password?</a>
               )}
 
-              <button type="submit" className="login-btn-primary">
-                {isSignUp ? 'SIGN UP' : 'SIGN IN'}
+              <button type="submit" className="login-btn-primary" disabled={loading}>
+                {loading ? 'Processing...' : (isSignUp ? 'SIGN UP' : 'SIGN IN')}
               </button>
             </form>
 
             {/* Mobile-only toggle */}
             <p className="login-mobile-toggle">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-              <button onClick={() => setIsSignUp(!isSignUp)}>
+              <button type="button" onClick={() => setIsSignUp(!isSignUp)} disabled={loading}>
                 {isSignUp ? 'Sign In' : 'Sign Up'}
               </button>
             </p>
