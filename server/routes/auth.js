@@ -25,9 +25,17 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
     }
 
-    const existing = await User.findOne({ where: { phone } });
+    if (!phone && !email) {
+      return res.status(400).json({ error: "Phone or email is required" });
+    }
+
+    const existCond = [];
+    if (phone) existCond.push({ phone });
+    if (email) existCond.push({ email });
+
+    const existing = await User.findOne({ where: { [Op.or]: existCond } });
     if (existing) {
-      return res.status(409).json({ error: "User with this phone already exists" });
+      return res.status(409).json({ error: "User with this phone/email already exists" });
     }
 
     const user = await User.create({ name, phone, email, password, role });
@@ -58,14 +66,21 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
-    const { phone, password } = req.body;
-    if (!phone || !password) {
+    const { phone, email, password } = req.body;
+    if ((!phone && !email) || !password) {
       return res
         .status(400)
-        .json({ error: "Phone/CID and password are required" });
+        .json({ error: "Phone/Email and password are required" });
     }
 
-    const user = await User.findOne({ where: { phone } });
+    const whereClause = [];
+    if (phone) whereClause.push({ phone });
+    if (email) whereClause.push({ email });
+
+    const user = await User.findOne({ 
+      where: { [Op.or]: whereClause } 
+    });
+    
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
