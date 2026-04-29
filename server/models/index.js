@@ -7,6 +7,7 @@ const ReceptionistProfile = require("./ReceptionistProfile");
 const LabTechnicianProfile = require("./LabTechnicianProfile");
 const HospitalAdminProfile = require("./HospitalAdminProfile");
 const SuperAdminProfile = require("./SuperAdminProfile");
+const Hospital = require("./Hospital");
 
 // Associations
 User.hasOne(PatientProfile, { foreignKey: "userId", as: "patientProfile" });
@@ -55,5 +56,6 @@ module.exports = {
   LabTechnicianProfile,
   HospitalAdminProfile,
   SuperAdminProfile,
+  Hospital,
   roleProfileMap,
 };

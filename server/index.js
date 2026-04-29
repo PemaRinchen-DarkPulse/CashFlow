@@ -30,10 +30,12 @@ app.get("/", (req, res) => {
 const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
+const hospitalRoutes = require("./routes/hospitals");
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/hospitals", hospitalRoutes);
 
 // Sync DB and start server
 sequelize
