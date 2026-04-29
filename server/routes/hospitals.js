@@ -11,6 +11,10 @@ const hospitalTypes = [
   "Traditional Medicine Hospital",
 ];
 
+const statuses = ["Active", "Inactive"];
+
+const clean = (value) => (typeof value === "string" ? value.trim() : "");
+
 // GET /api/hospitals
 router.get("/", auth, authorize("super_admin", "hospital_admin"), async (_req, res) => {
   try {
@@ -28,7 +32,18 @@ router.get("/", auth, authorize("super_admin", "hospital_admin"), async (_req, r
 // POST /api/hospitals
 router.post("/", auth, authorize("super_admin"), async (req, res) => {
   try {
-    const { name, type, addressLine, dzongkhag, gewog, telephone, email } = req.body;
+    const hospitalData = {
+      name: clean(req.body.name),
+      type: clean(req.body.type),
+      addressLine: clean(req.body.addressLine),
+      dzongkhag: clean(req.body.dzongkhag),
+      gewog: clean(req.body.gewog),
+      telephone: clean(req.body.telephone),
+      email: clean(req.body.email).toLowerCase(),
+      status: clean(req.body.status) || "Active",
+    };
+
+    const { name, type, addressLine, dzongkhag, gewog, telephone, email, status } = hospitalData;
 
     if (!name || !type || !addressLine || !dzongkhag || !gewog || !telephone || !email) {
       return res.status(400).json({ error: "All hospital fields are required" });
@@ -38,15 +53,11 @@ router.post("/", auth, authorize("super_admin"), async (req, res) => {
       return res.status(400).json({ error: "Invalid hospital type" });
     }
 
-    const hospital = await Hospital.create({
-      name,
-      type,
-      addressLine,
-      dzongkhag,
-      gewog,
-      telephone,
-      email,
-    });
+    if (!statuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid hospital status" });
+    }
+
+    const hospital = await Hospital.create(hospitalData);
 
     res.status(201).json({ hospital });
   } catch (error) {
@@ -55,6 +66,9 @@ router.post("/", auth, authorize("super_admin"), async (req, res) => {
       return res
         .status(400)
         .json({ error: error.errors.map((item) => item.message).join(", ") });
+    }
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({ error: "A hospital with this email already exists" });
     }
 
     res.status(500).json({ error: "Failed to create hospital" });

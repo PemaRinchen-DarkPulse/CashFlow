@@ -1,8 +1,8 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
-const Hospital = sequelize.define(
-  "Hospital",
+const BHU = sequelize.define(
+  "BHU",
   {
     id: {
       type: DataTypes.UUID,
@@ -15,15 +15,6 @@ const Hospital = sequelize.define(
       validate: {
         notEmpty: true,
       },
-    },
-    type: {
-      type: DataTypes.ENUM(
-        "National Referral Hospital",
-        "Regional Referral Hospital",
-        "District Hospital",
-        "Traditional Medicine Hospital",
-      ),
-      allowNull: false,
     },
     addressLine: {
       type: DataTypes.STRING,
@@ -69,9 +60,9 @@ const Hospital = sequelize.define(
     },
   },
   {
-    tableName: "Hospitals",
+    tableName: "BHUs",
     timestamps: true,
   },
 );
 
-module.exports = Hospital;
+module.exports = BHU;

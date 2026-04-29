@@ -28,8 +28,12 @@ import {
   SheetTitle,
 } from "../ui/sheet";
 import {
+  createBHU,
   createHospital,
+  getBHUs,
   getHospitals,
+  type BHUPayload,
+  type BHURecord,
   type HospitalPayload,
   type HospitalRecord,
 } from "../../services/api";
@@ -70,8 +74,10 @@ type OrganizationDirectory = {
     id?: string;
     name: string;
     dzongkhag: string;
-    level: string;
-    contact: string;
+    gewog?: string;
+    addressLine?: string;
+    level?: string;
+    contact?: string;
     status: string;
   }[];
 };
@@ -816,6 +822,18 @@ function mapHospitalToDirectoryItem(hospital: HospitalRecord) {
   };
 }
 
+function mapBHUToDirectoryItem(bhu: BHURecord) {
+  return {
+    id: bhu.id,
+    name: bhu.name,
+    dzongkhag: bhu.dzongkhag,
+    gewog: bhu.gewog,
+    addressLine: bhu.addressLine,
+    contact: bhu.telephone,
+    status: bhu.status,
+  };
+}
+
 function OrganizationDetailsView({
   organizationType,
   directory,
@@ -824,9 +842,10 @@ function OrganizationDetailsView({
   directory: OrganizationDirectory;
 }) {
   const isHospitalDirectory = organizationType === "hospital";
+  const isBHUDirectory = organizationType === "bhu";
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
-  const [hospitalItems, setHospitalItems] = useState(directory.items);
-  const [isLoadingHospitals, setIsLoadingHospitals] = useState(false);
+  const [organizationItems, setOrganizationItems] = useState(directory.items);
+  const [isLoadingOrganizations, setIsLoadingOrganizations] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState("");
   const [typeQuery, setTypeQuery] = useState("");
@@ -853,7 +872,8 @@ function OrganizationDetailsView({
   const filteredDzongkhags = dzongkhags.filter((dzongkhag) =>
     dzongkhag.toLowerCase().includes(dzongkhagQuery.toLowerCase()),
   );
-  const tableItems = isHospitalDirectory ? hospitalItems : directory.items;
+  const tableItems =
+    isHospitalDirectory || isBHUDirectory ? organizationItems : directory.items;
 
   const resetForm = () => {
     setName("");
@@ -870,33 +890,90 @@ function OrganizationDetailsView({
 
   useEffect(() => {
     if (!isHospitalDirectory) {
-      setHospitalItems(directory.items);
+      setOrganizationItems(directory.items);
       return;
     }
 
     const loadHospitals = async () => {
-      setIsLoadingHospitals(true);
+      setIsLoadingOrganizations(true);
       try {
         const data = await getHospitals();
-        setHospitalItems(data.hospitals.map(mapHospitalToDirectoryItem));
+        setOrganizationItems(data.hospitals.map(mapHospitalToDirectoryItem));
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to load hospitals";
         toast.error(message);
       } finally {
-        setIsLoadingHospitals(false);
+        setIsLoadingOrganizations(false);
       }
     };
 
     loadHospitals();
   }, [directory.items, isHospitalDirectory]);
 
+  useEffect(() => {
+    if (!isBHUDirectory) {
+      return;
+    }
+
+    const loadBHUs = async () => {
+      setIsLoadingOrganizations(true);
+      try {
+        const data = await getBHUs();
+        setOrganizationItems(data.bhus.map(mapBHUToDirectoryItem));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to load BHUs";
+        toast.error(message);
+      } finally {
+        setIsLoadingOrganizations(false);
+      }
+    };
+
+    loadBHUs();
+  }, [isBHUDirectory]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!isHospitalDirectory) {
+    if (!isHospitalDirectory && !isBHUDirectory) {
       setIsAddDrawerOpen(false);
       resetForm();
+      return;
+    }
+
+    if (isBHUDirectory) {
+      const bhuData: BHUPayload = {
+        name: name.trim(),
+        addressLine: addressLine.trim(),
+        dzongkhag: dzongkhagQuery.trim(),
+        gewog: gewogQuery.trim(),
+        telephone: telephone.trim(),
+        email: email.trim(),
+      };
+
+      if (Object.values(bhuData).some((value) => !value)) {
+        toast.error("Please fill in all BHU fields");
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const data = await createBHU(bhuData);
+        setOrganizationItems((currentItems) => [
+          mapBHUToDirectoryItem(data.bhu),
+          ...currentItems,
+        ]);
+        toast.success("BHU added successfully");
+        setIsAddDrawerOpen(false);
+        resetForm();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to add BHU";
+        toast.error(message);
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -918,7 +995,7 @@ function OrganizationDetailsView({
     setIsSubmitting(true);
     try {
       const data = await createHospital(hospitalData);
-      setHospitalItems((currentItems) => [
+      setOrganizationItems((currentItems) => [
         mapHospitalToDirectoryItem(data.hospital),
         ...currentItems,
       ]);
@@ -962,20 +1039,29 @@ function OrganizationDetailsView({
                 {directory.nameHeader}
               </th>
               <th className="px-4 py-2.5 font-semibold">Dzongkhag</th>
-              <th className="px-4 py-2.5 font-semibold">Level</th>
-              <th className="px-4 py-2.5 font-semibold">Contact</th>
+              {isBHUDirectory ? (
+                <>
+                  <th className="px-4 py-2.5 font-semibold">Gewog</th>
+                  <th className="px-4 py-2.5 font-semibold">Contact</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-4 py-2.5 font-semibold">Level</th>
+                  <th className="px-4 py-2.5 font-semibold">Contact</th>
+                </>
+              )}
               <th className="px-4 py-2.5 font-semibold">Status</th>
               <th className="px-4 py-2.5 text-right font-semibold">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
-            {isLoadingHospitals ? (
+            {isLoadingOrganizations ? (
               <tr>
                 <td
                   className="px-4 py-6 text-center text-neutral-500"
                   colSpan={6}
                 >
-                  Loading hospitals...
+                  Loading {isBHUDirectory ? "BHUs" : "hospitals"}...
                 </td>
               </tr>
             ) : tableItems.length > 0 ? (
@@ -987,10 +1073,25 @@ function OrganizationDetailsView({
                   <td className="px-4 py-2.5 text-neutral-600">
                     {item.dzongkhag}
                   </td>
-                  <td className="px-4 py-2.5 text-neutral-600">{item.level}</td>
-                  <td className="px-4 py-2.5 text-neutral-600">
-                    {item.contact}
-                  </td>
+                  {isBHUDirectory ? (
+                    <>
+                      <td className="px-4 py-2.5 text-neutral-600">
+                        {item.gewog}
+                      </td>
+                      <td className="px-4 py-2.5 text-neutral-600">
+                        {item.contact}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-2.5 text-neutral-600">
+                        {item.level}
+                      </td>
+                      <td className="px-4 py-2.5 text-neutral-600">
+                        {item.contact}
+                      </td>
+                    </>
+                  )}
                   <td className="px-4 py-2.5">
                     <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                       {item.status}
@@ -1012,7 +1113,7 @@ function OrganizationDetailsView({
                   className="px-4 py-6 text-center text-neutral-500"
                   colSpan={6}
                 >
-                  No hospitals added yet.
+                  No {isBHUDirectory ? "BHUs" : "hospitals"} added yet.
                 </td>
               </tr>
             )}
@@ -1049,7 +1150,9 @@ function OrganizationDetailsView({
                 <h3 className="border-l-4 border-blue-600 pl-3 text-base font-semibold text-neutral-950">
                   Basic Info
                 </h3>
-                <div className="grid gap-4 sm:grid-cols-[55fr_45fr]">
+                <div
+                  className={`grid gap-4 ${isBHUDirectory ? "" : "sm:grid-cols-[55fr_45fr]"}`}
+                >
                   <div className="space-y-2">
                     <label
                       htmlFor="organization-name"
@@ -1066,82 +1169,86 @@ function OrganizationDetailsView({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="organization-type"
-                      className="text-sm font-medium text-neutral-700"
-                    >
-                      Type
-                    </label>
-                    <div
-                      className="relative"
-                      onBlur={(event) => {
-                        if (
-                          !event.currentTarget.contains(
-                            event.relatedTarget as Node | null,
-                          )
-                        ) {
-                          setIsTypeOpen(false);
-                        }
-                      }}
-                    >
-                      <input
-                        id="organization-type"
-                        value={typeQuery}
-                        onChange={(event) => {
-                          setTypeQuery(event.target.value);
-                          setIsTypeOpen(true);
-                        }}
-                        onFocus={() => setIsTypeOpen(true)}
-                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 pr-10 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                        placeholder="Search type"
-                        role="combobox"
-                        aria-expanded={isTypeOpen}
-                        aria-controls="organization-type-options"
-                        autoComplete="off"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setIsTypeOpen((isOpen) => !isOpen)}
-                        className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
-                        aria-label="Toggle type options"
+                  {!isBHUDirectory ? (
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="organization-type"
+                        className="text-sm font-medium text-neutral-700"
                       >
-                        <ChevronDown
-                          className={`h-4 w-4 transition-transform ${isTypeOpen ? "rotate-180" : ""}`}
+                        Type
+                      </label>
+                      <div
+                        className="relative"
+                        onBlur={(event) => {
+                          if (
+                            !event.currentTarget.contains(
+                              event.relatedTarget as Node | null,
+                            )
+                          ) {
+                            setIsTypeOpen(false);
+                          }
+                        }}
+                      >
+                        <input
+                          id="organization-type"
+                          value={typeQuery}
+                          onChange={(event) => {
+                            setTypeQuery(event.target.value);
+                            setIsTypeOpen(true);
+                          }}
+                          onFocus={() => setIsTypeOpen(true)}
+                          className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 pr-10 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                          placeholder="Search type"
+                          role="combobox"
+                          aria-expanded={isTypeOpen}
+                          aria-controls="organization-type-options"
+                          autoComplete="off"
                         />
-                      </button>
-
-                      {isTypeOpen && (
-                        <div
-                          id="organization-type-options"
-                          role="listbox"
-                          className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
+                        <button
+                          type="button"
+                          onClick={() => setIsTypeOpen((isOpen) => !isOpen)}
+                          className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+                          aria-label="Toggle type options"
                         >
-                          {filteredOrganizationTypes.length > 0 ? (
-                            filteredOrganizationTypes.map((type) => (
-                              <button
-                                key={type}
-                                type="button"
-                                role="option"
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => {
-                                  setTypeQuery(type);
-                                  setIsTypeOpen(false);
-                                }}
-                                className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-800"
-                              >
-                                {type}
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-3 py-2 text-sm text-neutral-500">
-                              No type found
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${isTypeOpen ? "rotate-180" : ""}`}
+                          />
+                        </button>
+
+                        {isTypeOpen && (
+                          <div
+                            id="organization-type-options"
+                            role="listbox"
+                            className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
+                          >
+                            {filteredOrganizationTypes.length > 0 ? (
+                              filteredOrganizationTypes.map((type) => (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  role="option"
+                                  onMouseDown={(event) =>
+                                    event.preventDefault()
+                                  }
+                                  onClick={() => {
+                                    setTypeQuery(type);
+                                    setIsTypeOpen(false);
+                                  }}
+                                  className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-800"
+                                >
+                                  {type}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-neutral-500">
+                                No type found
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -1171,7 +1278,7 @@ function OrganizationDetailsView({
                       htmlFor="organization-gewog"
                       className="text-sm font-medium text-neutral-700"
                     >
-                      Gewog
+                      Dzongkhag
                     </label>
                     <div
                       className="relative"
@@ -1250,7 +1357,7 @@ function OrganizationDetailsView({
                       htmlFor="organization-dzongkhag"
                       className="text-sm font-medium text-neutral-700"
                     >
-                      Dzongkhag
+                      Gewog
                     </label>
                     <div
                       className="relative"

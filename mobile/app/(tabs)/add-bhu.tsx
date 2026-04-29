@@ -12,27 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Buildings,
-  MapPin,
-  Phone,
-  EnvelopeSimple,
-  CheckCircle,
-} from 'phosphor-react-native';
+import { FirstAidKit, MapPin, Phone, EnvelopeSimple, CheckCircle } from 'phosphor-react-native';
 import { Colors, Fonts, Radius, Spacing } from '../../constants/theme';
 import { useAuth } from '../../hooks/useAuth';
-import { createHospital, getHospitals, Hospital, HospitalType } from '../../services/hospitals';
-
-const hospitalTypes: HospitalType[] = [
-  'National Referral Hospital',
-  'Regional Referral Hospital',
-  'District Hospital',
-  'Traditional Medicine Hospital',
-];
+import { BHU, createBHU, getBHUs } from '../../services/bhus';
 
 const initialForm = {
   name: '',
-  type: 'District Hospital' as HospitalType,
   addressLine: '',
   dzongkhag: '',
   gewog: '',
@@ -40,39 +26,39 @@ const initialForm = {
   email: '',
 };
 
-export default function AddHospitalScreen() {
+export default function AddBHUScreen() {
   const { token } = useAuth();
   const [form, setForm] = useState(initialForm);
-  const [hospitals, setHospitals] = useState<Hospital[]>([]);
-  const [hospitalsLoading, setHospitalsLoading] = useState(true);
-  const [hospitalsError, setHospitalsError] = useState('');
+  const [bhus, setBHUs] = useState<BHU[]>([]);
+  const [bhusLoading, setBHUsLoading] = useState(true);
+  const [bhusError, setBHUsError] = useState('');
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const loadHospitals = useCallback(async () => {
+  const loadBHUs = useCallback(async () => {
     if (!token) {
-      setHospitalsLoading(false);
+      setBHUsLoading(false);
       return;
     }
 
-    setHospitalsLoading(true);
-    setHospitalsError('');
+    setBHUsLoading(true);
+    setBHUsError('');
 
     try {
-      const response = await getHospitals(token);
-      setHospitals(response.hospitals);
+      const response = await getBHUs(token);
+      setBHUs(response.bhus);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load hospitals';
-      setHospitalsError(message);
+      const message = err instanceof Error ? err.message : 'Failed to load BHUs';
+      setBHUsError(message);
     } finally {
-      setHospitalsLoading(false);
+      setBHUsLoading(false);
     }
   }, [token]);
 
   useEffect(() => {
-    loadHospitals();
-  }, [loadHospitals]);
+    loadBHUs();
+  }, [loadBHUs]);
 
   const updateField = <Field extends keyof typeof initialForm>(
     field: Field,
@@ -89,7 +75,6 @@ export default function AddHospitalScreen() {
   const handleSubmit = async () => {
     const payload = {
       name: form.name.trim(),
-      type: form.type,
       addressLine: form.addressLine.trim(),
       dzongkhag: form.dzongkhag.trim(),
       gewog: form.gewog.trim(),
@@ -106,12 +91,12 @@ export default function AddHospitalScreen() {
       !payload.telephone ||
       !payload.email
     ) {
-      setError('Please fill in every hospital detail.');
+      setError('Please fill in every BHU detail.');
       return;
     }
 
     if (!token) {
-      setError('Please sign in again before adding a hospital.');
+      setError('Please sign in again before adding a BHU.');
       return;
     }
 
@@ -119,12 +104,12 @@ export default function AddHospitalScreen() {
     setLoading(true);
 
     try {
-      await createHospital(payload, token);
+      await createBHU(payload, token);
       resetForm();
-      await loadHospitals();
-      Alert.alert('Hospital added', 'The hospital has been saved to the database.');
+      await loadBHUs();
+      Alert.alert('BHU added', 'The BHU has been saved to the database.');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add hospital';
+      const message = err instanceof Error ? err.message : 'Failed to add BHU';
       setError(message);
     } finally {
       setLoading(false);
@@ -144,49 +129,67 @@ export default function AddHospitalScreen() {
         >
           <View style={styles.header}>
             <View style={styles.headerIcon}>
-              <Buildings size={24} color={Colors.primary} weight="fill" />
+              <FirstAidKit size={24} color={Colors.primary} weight="fill" />
             </View>
             <View style={styles.headerText}>
-              <Text style={styles.title}>Add Hospital</Text>
-              <Text style={styles.subtitle}>Register a new hospital to the system</Text>
+              <Text style={styles.title}>Add BHU</Text>
+              <Text style={styles.subtitle}>Register a basic health unit</Text>
             </View>
           </View>
 
           <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>Hospital type</Text>
-            <View style={styles.typeGrid}>
-              {hospitalTypes.map((type) => {
-                const selected = form.type === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.typeOption, selected && styles.typeOptionSelected]}
-                    activeOpacity={0.8}
-                    onPress={() => updateField('type', type)}
-                  >
-                    <Text style={[styles.typeText, selected && styles.typeTextSelected]}>
-                      {type}
-                    </Text>
-                    {selected ? (
-                      <CheckCircle size={18} color={Colors.primary} weight="fill" />
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              })}
+            <Text style={styles.sectionTitle}>Contact</Text>
+            <View
+              style={[styles.inputWrap, focusedField === 'telephone' && styles.inputWrapFocused]}
+            >
+              <Phone
+                size={20}
+                color={focusedField === 'telephone' ? Colors.primary : Colors.textMuted}
+                weight="bold"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Telephone"
+                placeholderTextColor={Colors.textMuted}
+                value={form.telephone}
+                onChangeText={(value) => updateField('telephone', value)}
+                keyboardType="phone-pad"
+                onFocus={() => setFocusedField('telephone')}
+                onBlur={() => setFocusedField(null)}
+              />
+            </View>
+
+            <View style={[styles.inputWrap, focusedField === 'email' && styles.inputWrapFocused]}>
+              <EnvelopeSimple
+                size={20}
+                color={focusedField === 'email' ? Colors.primary : Colors.textMuted}
+                weight="bold"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Email address"
+                placeholderTextColor={Colors.textMuted}
+                value={form.email}
+                onChangeText={(value) => updateField('email', value)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+              />
             </View>
           </View>
 
           <View style={styles.formSection}>
             <Text style={styles.sectionTitle}>Details</Text>
             <View style={[styles.inputWrap, focusedField === 'name' && styles.inputWrapFocused]}>
-              <Buildings
+              <FirstAidKit
                 size={20}
                 color={focusedField === 'name' ? Colors.primary : Colors.textMuted}
                 weight="bold"
               />
               <TextInput
                 style={styles.input}
-                placeholder="Hospital name"
+                placeholder="BHU name"
                 placeholderTextColor={Colors.textMuted}
                 value={form.name}
                 onChangeText={(value) => updateField('name', value)}
@@ -254,45 +257,6 @@ export default function AddHospitalScreen() {
                 />
               </View>
             </View>
-
-            <View
-              style={[styles.inputWrap, focusedField === 'telephone' && styles.inputWrapFocused]}
-            >
-              <Phone
-                size={20}
-                color={focusedField === 'telephone' ? Colors.primary : Colors.textMuted}
-                weight="bold"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Telephone"
-                placeholderTextColor={Colors.textMuted}
-                value={form.telephone}
-                onChangeText={(value) => updateField('telephone', value)}
-                keyboardType="phone-pad"
-                onFocus={() => setFocusedField('telephone')}
-                onBlur={() => setFocusedField(null)}
-              />
-            </View>
-
-            <View style={[styles.inputWrap, focusedField === 'email' && styles.inputWrapFocused]}>
-              <EnvelopeSimple
-                size={20}
-                color={focusedField === 'email' ? Colors.primary : Colors.textMuted}
-                weight="bold"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email address"
-                placeholderTextColor={Colors.textMuted}
-                value={form.email}
-                onChangeText={(value) => updateField('email', value)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onFocus={() => setFocusedField('email')}
-                onBlur={() => setFocusedField(null)}
-              />
-            </View>
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -308,19 +272,19 @@ export default function AddHospitalScreen() {
             ) : (
               <>
                 <CheckCircle size={20} color={Colors.white} weight="bold" />
-                <Text style={styles.submitText}>Add Hospital</Text>
+                <Text style={styles.submitText}>Add BHU</Text>
               </>
             )}
           </TouchableOpacity>
 
-          <View style={styles.hospitalsSection}>
+          <View style={styles.bhusSection}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Hospitals</Text>
-              <Text style={styles.countText}>{hospitals.length}</Text>
+              <Text style={styles.sectionTitle}>BHUs</Text>
+              <Text style={styles.countText}>{bhus.length}</Text>
             </View>
 
-            {hospitalsLoading ? (
-              <View style={styles.hospitalList}>
+            {bhusLoading ? (
+              <View style={styles.bhuList}>
                 {[0, 1, 2].map((item) => (
                   <View key={item} style={styles.skeletonCard}>
                     <View style={styles.skeletonIcon} />
@@ -332,39 +296,35 @@ export default function AddHospitalScreen() {
                   </View>
                 ))}
               </View>
-            ) : hospitalsError ? (
+            ) : bhusError ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>Could not load hospitals</Text>
-                <Text style={styles.emptyText}>{hospitalsError}</Text>
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  activeOpacity={0.8}
-                  onPress={loadHospitals}
-                >
+                <Text style={styles.emptyTitle}>Could not load BHUs</Text>
+                <Text style={styles.emptyText}>{bhusError}</Text>
+                <TouchableOpacity style={styles.retryButton} activeOpacity={0.8} onPress={loadBHUs}>
                   <Text style={styles.retryText}>Retry</Text>
                 </TouchableOpacity>
               </View>
-            ) : hospitals.length === 0 ? (
+            ) : bhus.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No hospitals yet</Text>
-                <Text style={styles.emptyText}>Hospitals you add will appear here.</Text>
+                <Text style={styles.emptyTitle}>No BHUs yet</Text>
+                <Text style={styles.emptyText}>BHUs you add will appear here.</Text>
               </View>
             ) : (
-              <View style={styles.hospitalList}>
-                {hospitals.map((hospital) => (
-                  <View key={hospital.id} style={styles.hospitalCard}>
-                    <View style={styles.hospitalIcon}>
-                      <Buildings size={20} color={Colors.primary} weight="fill" />
+              <View style={styles.bhuList}>
+                {bhus.map((bhu) => (
+                  <View key={bhu.id} style={styles.bhuCard}>
+                    <View style={styles.bhuIcon}>
+                      <FirstAidKit size={20} color={Colors.primary} weight="fill" />
                     </View>
-                    <View style={styles.hospitalInfo}>
-                      <Text style={styles.hospitalName}>{hospital.name}</Text>
-                      <Text style={styles.hospitalMeta}>{hospital.type}</Text>
-                      <Text style={styles.hospitalMeta}>
-                        {hospital.gewog}, {hospital.dzongkhag}
+                    <View style={styles.bhuInfo}>
+                      <Text style={styles.bhuName}>{bhu.name}</Text>
+                      <Text style={styles.bhuMeta}>
+                        {bhu.gewog}, {bhu.dzongkhag}
                       </Text>
+                      <Text style={styles.bhuMeta}>{bhu.telephone}</Text>
                     </View>
                     <View style={styles.statusPill}>
-                      <Text style={styles.statusText}>{hospital.status}</Text>
+                      <Text style={styles.statusText}>{bhu.status}</Text>
                     </View>
                   </View>
                 ))}
@@ -426,35 +386,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
-  typeGrid: {
-    gap: Spacing.sm,
-  },
-  typeOption: {
-    minHeight: 52,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-  typeOptionSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  typeText: {
-    flex: 1,
-    fontFamily: Fonts.semiBold,
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  typeTextSelected: {
-    color: Colors.primary,
-  },
   inputWrap: {
     minHeight: 54,
     borderRadius: Radius.sm,
@@ -469,7 +400,6 @@ const styles = StyleSheet.create({
   },
   inputWrapFocused: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.white,
   },
   input: {
     flex: 1,
@@ -508,7 +438,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.white,
   },
-  hospitalsSection: {
+  bhusSection: {
     marginTop: Spacing.xxl,
   },
   sectionHeader: {
@@ -528,10 +458,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.primary,
   },
-  hospitalList: {
+  bhuList: {
     gap: Spacing.md,
   },
-  hospitalCard: {
+  bhuCard: {
     minHeight: 78,
     borderRadius: Radius.sm,
     borderWidth: 1,
@@ -542,7 +472,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  hospitalIcon: {
+  bhuIcon: {
     width: 42,
     height: 42,
     borderRadius: Radius.sm,
@@ -550,16 +480,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hospitalInfo: {
+  bhuInfo: {
     flex: 1,
     gap: 2,
   },
-  hospitalName: {
+  bhuName: {
     fontFamily: Fonts.bold,
     fontSize: 15,
     color: Colors.textPrimary,
   },
-  hospitalMeta: {
+  bhuMeta: {
     fontFamily: Fonts.medium,
     fontSize: 12,
     color: Colors.textSecondary,

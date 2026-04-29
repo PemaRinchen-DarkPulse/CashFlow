@@ -26,6 +26,22 @@ export type HospitalRecord = HospitalPayload & {
   updatedAt: string;
 };
 
+export type BHUPayload = {
+  name: string;
+  addressLine: string;
+  dzongkhag: string;
+  gewog: string;
+  telephone: string;
+  email: string;
+};
+
+export type BHURecord = BHUPayload & {
+  id: string;
+  status: "Active" | "Inactive";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const login = async (credentials: {
   phone?: string;
   email?: string;
@@ -74,6 +90,38 @@ export const createHospital = async (
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "Failed to create hospital");
+  }
+
+  return response.json();
+};
+
+export const getBHUs = async (): Promise<{
+  bhus: BHURecord[];
+}> => {
+  const response = await fetch(`${API_URL}/bhus`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch BHUs");
+  }
+
+  return response.json();
+};
+
+export const createBHU = async (
+  bhuData: BHUPayload,
+): Promise<{ bhu: BHURecord }> => {
+  const response = await fetch(`${API_URL}/bhus`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(bhuData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create BHU");
   }
 
   return response.json();

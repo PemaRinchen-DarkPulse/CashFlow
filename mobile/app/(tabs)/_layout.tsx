@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { House, Folder, CalendarCheck, Pill, List, Buildings, UsersThree, Gear, UserList, ListNumbers } from 'phosphor-react-native';
+import { House, Folder, CalendarCheck, Pill, List, Buildings, UsersThree, Gear, UserList, ListNumbers, FirstAidKit } from 'phosphor-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { Platform } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
@@ -130,6 +130,16 @@ export default function TabLayout() {
           href: isSuperAdmin ? '/(tabs)/add-hospital' : null,
           tabBarIcon: ({ color, focused }) => (
             <Buildings size={24} color={color} weight={focused ? 'fill' : 'regular'} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="add-bhu"
+        options={{
+          title: 'Add BHU',
+          href: isSuperAdmin ? ('/(tabs)/add-bhu' as never) : null,
+          tabBarIcon: ({ color, focused }) => (
+            <FirstAidKit size={24} color={color} weight={focused ? 'fill' : 'regular'} />
           ),
         }}
       />

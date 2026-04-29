@@ -31,11 +31,13 @@ const healthRoutes = require("./routes/health");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const hospitalRoutes = require("./routes/hospitals");
+const bhuRoutes = require("./routes/bhus");
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/hospitals", hospitalRoutes);
+app.use("/api/bhus", bhuRoutes);
 
 // Sync DB and start server
 sequelize
