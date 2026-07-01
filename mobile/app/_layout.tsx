@@ -1,39 +1,36 @@
+import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { useFonts } from 'expo-font';
-import {
-  Nunito_400Regular,
-  Nunito_500Medium,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-  Nunito_800ExtraBold,
-} from '@expo-google-fonts/nunito';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import { RoleProvider } from '@/src/services/RoleContext';
 
+// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Nunito_400Regular,
-    Nunito_500Medium,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Nunito_800ExtraBold,
-  });
-
   useEffect(() => {
-    if (fontsLoaded) {
+    // Hide splash screen after a brief delay for smooth transition
+    const timer = setTimeout(() => {
       SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) return null;
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <>
+    <RoleProvider>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }} />
-    </>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="(patient)" />
+        <Stack.Screen name="(doctor)" />
+        <Stack.Screen name="(pharmacist)" />
+      </Stack>
+    </RoleProvider>
   );
 }

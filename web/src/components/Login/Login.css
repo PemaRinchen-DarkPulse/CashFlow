@@ -1,0 +1,219 @@
+.login-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  padding: 2rem;
+}
+
+.login-card-split {
+  display: flex;
+  width: 100%;
+  max-width: 850px; /* Reduced from 1000px to make it less wide overall */
+  height: 600px; /* Fixed height for the split layout to look balanced */
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 20px; /* Slightly larger border radius for the big card */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  overflow: hidden;
+}
+
+/* LEFT SIDE: IMAGE PANEL */
+.login-image-panel {
+  width: 45%;
+  flex: none;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* Push content to bottom */
+}
+
+.image-overlay {
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+  padding: 3rem 2rem 2rem;
+  color: white;
+  text-align: center;
+}
+
+.image-overlay h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.image-overlay p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+/* RIGHT SIDE: FORM PANEL */
+.login-form-panel {
+  width: 55%;
+  flex: none;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Vertically center the content */
+  background: var(--card-bg);
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 2rem;
+  transition: color 0.2s ease;
+  align-self: flex-start;
+}
+
+.back-button:hover {
+  color: var(--text-primary);
+}
+
+.login-header {
+  margin-bottom: 2rem;
+}
+
+.login-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.login-header p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-group label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.input-group input {
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px; /* Slightly squarer for inputs as per screenshot */
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-group input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.input-group input::placeholder {
+  color: #9ca3af;
+}
+
+.form-options {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* Align to the right as per screenshot */
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+}
+
+.forgot-password {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+.login-button {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px; /* Match inputs */
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-button:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-button.submitting {
+  color: transparent;
+}
+
+.login-button.submitting::after {
+  content: "";
+  position: absolute;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsiveness for smaller screens: stack them vertically */
+@media (max-width: 768px) {
+  .login-card-split {
+    flex-direction: column;
+    height: auto;
+    max-width: 480px;
+  }
+  
+  .login-image-panel {
+    height: 250px;
+    flex: none;
+  }
+  
+  .login-form-panel {
+    padding: 2rem;
+  }
+}

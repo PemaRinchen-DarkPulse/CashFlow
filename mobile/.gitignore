@@ -18,19 +18,6 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# secret keys & credentials
-*.pem
-*.cert
-*.crt
-*.pfx
-*.keystore
-*.secrets
-*.credentials
-serviceAccountKey.json
-firebase-adminsdk*.json
-google-services.json
-GoogleService-Info.plist
-
 # Metro
 .metro-health-check*
 
@@ -41,14 +28,10 @@ yarn-error.*
 
 # macOS
 .DS_Store
+*.pem
 
 # local env files
-.env
-.env.*
 .env*.local
-.env.production
-.env.staging
-.env.development
 
 # typescript
 *.tsbuildinfo
@@ -58,29 +41,3 @@ app-example
 # generated native folders
 /ios
 /android
-
-# pnpm
-pnpm-debug.log*
-
-# editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-Thumbs.db
-Desktop.ini
-
-# build / cache
-*.apk
-*.aab
-*.ipa
-
-# EAS
-.easignore
-
-# coverage & test output
-coverage/
-.nyc_output/

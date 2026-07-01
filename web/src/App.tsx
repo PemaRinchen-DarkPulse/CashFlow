@@ -1,35 +1,38 @@
-import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import { Toaster } from "sonner";
-import LandingPage from "./pages/LandingPage";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import DashboardLayout from "./components/layout/DashboardLayout";
+import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import './App.css';
+import Login from './components/Login/Login';
+import DashboardLayout from './components/DashboardLayout/DashboardLayout';
+import Dashboard from './pages/Dashboard/Dashboard';
+import LessonPlans from './pages/LessonPlans/LessonPlans';
+import Students from './pages/Students/Students';
+import ManageUsers from './pages/ManageUsers/ManageUsers';
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+  };
+
+  if (!isLoggedIn) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
-    <React.Fragment>
-      <Toaster position="top-right" richColors />
-      <Router>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/signup" element={<LoginPage />} />
-          <Route path="/login" element={<LoginPage />} />
-
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-          </Route>
-
-          {/* Catch-all route for 404 errors */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </React.Fragment>
+    <DashboardLayout onLogout={handleLogout}>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/lesson-plans" element={<LessonPlans />} />
+        <Route path="/students" element={<Students />} />
+        <Route path="/manage-users" element={<ManageUsers />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </DashboardLayout>
   );
 }
 
