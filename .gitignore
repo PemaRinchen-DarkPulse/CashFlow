@@ -1,0 +1,60 @@
+# Repo-wide ignores. Each workspace (mobile/, server/) may add its own on top.
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+web-build/
+out/
+coverage/
+*.tsbuildinfo
+
+# Expo / Metro / bundler caches
+.expo/
+.expo-shared/
+.metro-health-check*
+.cache/
+*.hbc
+
+# Generated native projects (recreated by `expo prebuild`)
+/mobile/ios/
+/mobile/android/
+
+# Secrets and signing material — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# Logs
+*.log
+logs/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+
+# OS cruft
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editor cruft (.vscode/ and .claude/ are intentionally tracked in this repo)
+.idea/
+*.swp
+*.swo
+*~
+*.orig.*
