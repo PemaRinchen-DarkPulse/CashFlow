@@ -1,160 +1,111 @@
-import React from 'react';
-import {
-  Pressable,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ViewStyle,
-  TextStyle,
-  View,
-} from 'react-native';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/src/theme/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Haptics from 'expo-haptics';
+import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
-type ButtonSize = 'sm' | 'md' | 'lg';
+import { AppText } from '@/src/components/AppText';
+import { colors, font, radius, shadow, spacing } from '@/src/theme';
+import type { IconName } from '@/src/types';
 
-interface ButtonProps {
-  title: string;
-  onPress: () => void;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
+export type ButtonProps = {
+  label: string;
+  onPress?: () => void;
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  icon?: IconName;
   disabled?: boolean;
   loading?: boolean;
-  icon?: React.ReactNode;
-  iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
   style?: ViewStyle;
-  textStyle?: TextStyle;
-}
+};
 
-export const Button: React.FC<ButtonProps> = ({
-  title,
+export function Button({
+  label,
   onPress,
   variant = 'primary',
-  size = 'md',
-  disabled = false,
-  loading = false,
   icon,
-  iconPosition = 'left',
-  fullWidth = false,
+  disabled,
+  loading,
+  fullWidth = true,
   style,
-  textStyle,
-}) => {
-  const isDisabled = disabled || loading;
+}: ButtonProps) {
+  const isPrimary = variant === 'primary';
+  const isDanger = variant === 'danger';
+  const tint = isPrimary ? '#04140A' : isDanger ? colors.expense : colors.text;
+
+  const handlePress = () => {
+    if (disabled || loading) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onPress?.();
+  };
 
   return (
     <Pressable
-      onPress={onPress}
-      disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading }}
+      onPress={handlePress}
+      disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,
-        sizeStyles[size],
-        variantStyles[variant],
-        pressed && !isDisabled && variantPressedStyles[variant],
-        isDisabled && styles.disabled,
-        fullWidth && styles.fullWidth,
+        fullWidth && { alignSelf: 'stretch' },
+        isPrimary && styles.primary,
+        isPrimary && shadow.glow,
+        variant === 'secondary' && styles.secondary,
+        variant === 'ghost' && styles.ghost,
+        isDanger && styles.danger,
+        (disabled || loading) && styles.disabled,
+        pressed && styles.pressed,
         style,
-      ]}
-    >
-      {({ pressed }) => (
+      ]}>
+      {loading ? (
+        <ActivityIndicator color={tint} />
+      ) : (
         <View style={styles.content}>
-          {loading ? (
-            <ActivityIndicator
-              size="small"
-              color={variant === 'primary' || variant === 'secondary' ? Colors.white : Colors.primary}
-            />
-          ) : (
-            <>
-              {icon && iconPosition === 'left' && <View style={styles.iconLeft}>{icon}</View>}
-              <Text
-                style={[
-                  styles.text,
-                  sizeTextStyles[size],
-                  variantTextStyles[variant],
-                  pressed && !isDisabled && variantPressedTextStyles[variant],
-                  isDisabled && styles.disabledText,
-                  textStyle,
-                ]}
-              >
-                {title}
-              </Text>
-              {icon && iconPosition === 'right' && <View style={styles.iconRight}>{icon}</View>}
-            </>
-          )}
+          {icon ? <Ionicons name={icon} size={18} color={tint} /> : null}
+          <AppText style={[styles.label, { color: tint }]}>{label}</AppText>
         </View>
       )}
     </Pressable>
   );
-};
+}
 
 const styles = StyleSheet.create({
   base: {
-    flexDirection: 'row',
+    height: 54,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: spacing.xxl,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.sm,
   },
-  text: {
-    textAlign: 'center',
+  label: {
+    fontFamily: font.semibold,
+    fontSize: 15.5,
+    letterSpacing: -0.2,
   },
-  fullWidth: {
-    width: '100%',
+  primary: {
+    backgroundColor: colors.primary,
+  },
+  secondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+  },
+  danger: {
+    backgroundColor: colors.expenseSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(255,92,108,0.35)',
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
-  disabledText: {
-    color: Colors.textDisabled,
-  },
-  iconLeft: {
-    marginRight: Spacing.sm,
-  },
-  iconRight: {
-    marginLeft: Spacing.sm,
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.985 }],
   },
 });
-
-const sizeStyles: Record<ButtonSize, ViewStyle> = {
-  sm: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
-  md: { paddingVertical: Spacing.md - 4, paddingHorizontal: Spacing.lg },
-  lg: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl },
-};
-
-const sizeTextStyles: Record<ButtonSize, TextStyle> = {
-  sm: { ...Typography.labelMedium },
-  md: { ...Typography.labelLarge },
-  lg: { ...Typography.titleSmall },
-};
-
-const variantStyles: Record<ButtonVariant, ViewStyle> = {
-  primary: { backgroundColor: Colors.primary, ...Shadows.md },
-  secondary: { backgroundColor: Colors.secondary },
-  outline: { backgroundColor: Colors.transparent, borderWidth: 1.5, borderColor: Colors.primary },
-  ghost: { backgroundColor: Colors.transparent },
-};
-
-const variantPressedStyles: Record<ButtonVariant, ViewStyle> = {
-  primary: { backgroundColor: Colors.primaryDark, transform: [{ scale: 0.98 }] },
-  secondary: { backgroundColor: '#3AAFE0', transform: [{ scale: 0.98 }] },
-  outline: { backgroundColor: Colors.primaryContainer, transform: [{ scale: 0.98 }] },
-  ghost: { backgroundColor: Colors.surfaceVariant, transform: [{ scale: 0.98 }] },
-};
-
-const variantTextStyles: Record<ButtonVariant, TextStyle> = {
-  primary: { color: Colors.onPrimary, fontWeight: '600' },
-  secondary: { color: Colors.onSecondary, fontWeight: '600' },
-  outline: { color: Colors.primary, fontWeight: '600' },
-  ghost: { color: Colors.primary, fontWeight: '500' },
-};
-
-const variantPressedTextStyles: Record<ButtonVariant, TextStyle> = {
-  primary: { color: Colors.onPrimary },
-  secondary: { color: Colors.onSecondary },
-  outline: { color: Colors.primaryDark },
-  ghost: { color: Colors.primaryDark },
-};

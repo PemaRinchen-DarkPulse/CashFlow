@@ -1,90 +1,63 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/src/theme/theme';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
-interface StatCardProps {
+import { AppText } from '@/src/components/AppText';
+import { colors, font, radius, spacing } from '@/src/theme';
+
+export type StatCardProps = {
   label: string;
-  value: string | number;
-  icon: keyof typeof Ionicons.glyphMap;
-  color?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  trendValue?: string;
+  value: string;
+  /** Small delta line under the value, e.g. "Net Nu. 3,686". */
+  caption?: string;
+  /** Tints the figure — green for money in, red for money out. */
+  valueColor?: string;
   style?: ViewStyle;
-}
+};
 
-export const StatCard: React.FC<StatCardProps> = ({
+/** A compact figure card: label, the number, and an optional footnote. */
+export function StatCard({
   label,
   value,
-  icon,
-  color = Colors.primary,
-  trend,
-  trendValue,
+  caption,
+  valueColor = colors.text,
   style,
-}) => {
-  const trendColor = trend === 'up' ? Colors.success : trend === 'down' ? Colors.error : Colors.textTertiary;
-
+}: StatCardProps) {
   return (
     <View style={[styles.card, style]}>
-      <View style={styles.header}>
-        <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
-          <Ionicons name={icon} size={20} color={color} />
-        </View>
-        {trend && trendValue && (
-          <View style={styles.trend}>
-            <Ionicons
-              name={trend === 'up' ? 'arrow-up' : trend === 'down' ? 'arrow-down' : 'remove'}
-              size={12}
-              color={trendColor}
-            />
-            <Text style={[styles.trendText, { color: trendColor }]}>{trendValue}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={[styles.value, { color }]}>{value}</Text>
-      <Text style={styles.label}>{label}</Text>
+      <AppText variant="caption" color={colors.textMuted} style={styles.label}>
+        {label}
+      </AppText>
+      <AppText
+        tabular
+        style={[styles.value, { color: valueColor }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit>
+        {value}
+      </AppText>
+      {caption ? (
+        <AppText variant="caption" color={colors.textSecondary}>
+          {caption}
+        </AppText>
+      ) : null}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    ...Shadows.sm,
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trend: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
     gap: 2,
   },
-  trendText: {
-    ...Typography.labelSmall,
+  label: {
+    marginBottom: 1,
   },
   value: {
-    ...Typography.displaySmall,
-    fontWeight: '700',
-    marginBottom: Spacing.xxs,
-  },
-  label: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
+    fontFamily: font.bold,
+    fontSize: 19,
+    letterSpacing: -0.5,
   },
 });

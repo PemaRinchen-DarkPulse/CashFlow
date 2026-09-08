@@ -5,38 +5,49 @@ node_modules/
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
+
+# Test / build output
+coverage/
 
 # Native
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+google-services.json
+GoogleService-Info.plist
 
 # Metro
 .metro-health-check*
 
 # debug
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.*
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
 *.pem
 
-# local env files
-.env*.local
+# env files — the bare .env holds real secrets, so ignore it too
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
-
-app-example
 
 # generated native folders
 /ios

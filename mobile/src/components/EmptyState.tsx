@@ -1,64 +1,68 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing } from '@/src/theme/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { StyleSheet, View } from 'react-native';
 
-interface EmptyStateProps {
-  icon?: keyof typeof Ionicons.glyphMap;
+import { AppText } from '@/src/components/AppText';
+import { Button } from '@/src/components/Button';
+import { colors, spacing } from '@/src/theme';
+import type { IconName } from '@/src/types';
+
+export type EmptyStateProps = {
+  icon?: IconName;
   title: string;
-  description?: string;
-  action?: React.ReactNode;
-  style?: ViewStyle;
-}
-
-export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon = 'document-text-outline',
-  title,
-  description,
-  action,
-  style,
-}) => {
-  return (
-    <View style={[styles.container, style]}>
-      <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={48} color={Colors.textDisabled} />
-      </View>
-      <Text style={styles.title}>{title}</Text>
-      {description && <Text style={styles.description}>{description}</Text>}
-      {action && <View style={styles.action}>{action}</View>}
-    </View>
-  );
+  body?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
+export function EmptyState({
+  icon = 'documents-outline',
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: EmptyStateProps) {
+  return (
+    <View style={styles.root}>
+      <View style={styles.iconWrap}>
+        <Ionicons name={icon} size={26} color={colors.primary} />
+      </View>
+      <AppText variant="h3" center>
+        {title}
+      </AppText>
+      {body ? (
+        <AppText variant="body" color={colors.textMuted} center style={styles.body}>
+          {body}
+        </AppText>
+      ) : null}
+      {actionLabel && onAction ? (
+        <Button label={actionLabel} onPress={onAction} fullWidth={false} style={styles.action} />
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  root: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+  },
+  iconWrap: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.xl,
+    marginBottom: spacing.lg,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.surfaceVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-  },
-  title: {
-    ...Typography.titleMedium,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  description: {
-    ...Typography.bodyMedium,
-    color: Colors.textTertiary,
-    textAlign: 'center',
+  body: {
+    marginTop: spacing.sm,
     maxWidth: 280,
+    lineHeight: 20,
   },
   action: {
-    marginTop: Spacing.lg,
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.xxxl,
   },
 });

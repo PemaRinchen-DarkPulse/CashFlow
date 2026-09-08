@@ -1,45 +1,35 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Spacing, BorderRadius, Shadows } from '@/src/theme/theme';
+import { View, type ViewProps } from 'react-native';
 
-interface CardProps {
-  children: React.ReactNode;
-  style?: ViewStyle;
-  padding?: keyof typeof Spacing;
-  shadow?: keyof typeof Shadows;
-  noBorder?: boolean;
-}
+import { colors, radius, shadow, spacing } from '@/src/theme';
 
-export const Card: React.FC<CardProps> = ({
-  children,
-  style,
-  padding = 'md',
-  shadow = 'sm',
-  noBorder = false,
-}) => {
-  return (
-    <View
-      style={[
-        styles.card,
-        Shadows[shadow],
-        { padding: Spacing[padding] },
-        !noBorder && styles.border,
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
+export type CardProps = ViewProps & {
+  padded?: boolean;
+  /** Adds the soft drop shadow used by the hero surfaces. */
+  elevated?: boolean;
+  tone?: 'default' | 'surface';
 };
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  border: {
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-});
+export function Card({
+  padded = true,
+  elevated = false,
+  tone = 'default',
+  style,
+  ...rest
+}: CardProps) {
+  return (
+    <View
+      {...rest}
+      style={[
+        {
+          backgroundColor: tone === 'surface' ? colors.surface : colors.card,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: colors.border,
+        },
+        padded && { padding: spacing.xl },
+        elevated && shadow.card,
+        style,
+      ]}
+    />
+  );
+}

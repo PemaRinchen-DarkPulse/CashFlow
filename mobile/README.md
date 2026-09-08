@@ -1,50 +1,57 @@
-# Welcome to your Expo app 👋
+# CashFlow
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
-
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+A personal finance and expense tracker built with **React Native + Expo (SDK 54) + TypeScript**,
+designed to answer one question at a glance: **where did my money go?**
 
 ```bash
-npm run reset-project
+npm install
+npx expo start        # then press a / i / w, or scan the QR code
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## What it does
 
-## Learn more
+| Screen | Purpose |
+| --- | --- |
+| **Home** | Total balance with trend, month income/spend, category donut, budget progress, recent transactions, goal spotlight, streak |
+| **Activity** | Full ledger grouped by day, with search, income/expense filters and category filters |
+| **Analytics** | Week/month/year spending, category breakdown, savings rate, daily average, biggest payees, written insights |
+| **Plan** | Monthly category budgets, savings goals, and debts owed to and by friends |
+| **Profile** | Accounts, preferences, rewards, notifications, reset |
 
-To learn more about developing your project with Expo, look at the following resources:
+Supporting routes: add transaction (with success confirmation), transaction detail, budget editor,
+new goal, notifications and rewards.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Architecture
 
-## Join the community
+```
+app/                     expo-router routes ((tabs) group + stack screens)
+src/theme/               design tokens: colours, spacing, radii, Inter type scale, shadows
+src/types.ts             domain model (Transaction, Budget, Goal, Account, …)
+src/data/                categories and the deterministic 6-month demo dataset
+src/store/               FinanceContext reducer + AsyncStorage persistence
+src/utils/               date helpers, currency formatting, analytics selectors
+src/components/          UI primitives, cards, rows and SVG charts
+```
 
-Join our community of developers creating universal apps.
+- **State** lives in a single reducer behind `useFinance()`, persisted to AsyncStorage
+  (debounced) and reconciled against a fresh seed on load so new fields never land undefined.
+- **Money is never double-counted**: adding or deleting a transaction adjusts the account
+  balance by the exact inverse amount; goal contributions are treated as transfers between
+  accounts rather than spending, so they stay out of expense analytics.
+- **Debts are liabilities, not income**: borrowing from a friend raises your cash balance
+  and repaying lowers it, but neither touches income, spending or any budget. `netWorth`
+  reports cash minus what you owe plus what is owed to you — what you would hold after
+  everyone settles up.
+- **Derived values stay derived**: the tracking streak, budget status and every chart are
+  computed from the ledger, so no screen can drift out of sync with another.
+- **Charts** are hand-drawn with `react-native-svg` (donut, sparkline) and Reanimated
+  (animated bars and progress), so there is no charting dependency to keep current.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+All data is local to the device. There is no backend and no network calls.
+
+## Design
+
+Dark navy/near-black canvas, a single vivid green accent (`#1DD75B`), white headings and
+grey secondary text, large rounded cards with soft shadows, and large tabular figures in
+Inter. Income is green, expenses fall back to a muted red, and amounts can be masked
+app-wide with the balance eye toggle.

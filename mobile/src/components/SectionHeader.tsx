@@ -1,49 +1,61 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Typography, Spacing } from '@/src/theme/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-interface SectionHeaderProps {
+import { AppText } from '@/src/components/AppText';
+import { colors, spacing } from '@/src/theme';
+
+export type SectionHeaderProps = {
   title: string;
+  subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
-  style?: ViewStyle;
-}
-
-export const SectionHeader: React.FC<SectionHeaderProps> = ({
-  title,
-  actionLabel = 'See All',
-  onAction,
-  style,
-}) => {
-  return (
-    <View style={[styles.container, style]}>
-      <Text style={styles.title}>{title}</Text>
-      {onAction && (
-        <Pressable onPress={onAction} style={({ pressed }) => [pressed && styles.pressed]}>
-          <Text style={styles.action}>{actionLabel}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
 };
 
+export function SectionHeader({ title, subtitle, actionLabel, onAction }: SectionHeaderProps) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.titles}>
+        <AppText variant="h2">{title}</AppText>
+        {subtitle ? (
+          <AppText variant="caption" color={colors.textMuted} style={styles.subtitle}>
+            {subtitle}
+          </AppText>
+        ) : null}
+      </View>
+
+      {actionLabel ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAction}
+          hitSlop={10}
+          style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}>
+          <AppText variant="label" color={colors.primary}>
+            {actionLabel}
+          </AppText>
+          <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
+  row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
   },
-  title: {
-    ...Typography.titleMedium,
-    color: Colors.textPrimary,
+  titles: {
+    flex: 1,
+    paddingRight: spacing.md,
+  },
+  subtitle: {
+    marginTop: 2,
   },
   action: {
-    ...Typography.labelMedium,
-    color: Colors.primary,
-  },
-  pressed: {
-    opacity: 0.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
 });
