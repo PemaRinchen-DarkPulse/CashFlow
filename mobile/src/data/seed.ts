@@ -351,7 +351,6 @@ export function createSeedState(now = new Date()): FinanceState {
       hideBalance: true,
       budgetAlerts: true,
       goalReminders: true,
-      biometricLock: false,
       weeklyDigest: true,
     },
   };

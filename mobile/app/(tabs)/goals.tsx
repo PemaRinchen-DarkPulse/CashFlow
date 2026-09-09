@@ -16,12 +16,10 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
-import { BudgetRow } from '@/src/components/BudgetRow';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { DebtCard } from '@/src/components/DebtCard';
-import { DonutChart } from '@/src/components/charts/DonutChart';
 import { EmptyState } from '@/src/components/EmptyState';
 import { GoalCard } from '@/src/components/GoalCard';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
@@ -30,13 +28,12 @@ import { Segmented } from '@/src/components/Segmented';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { Debt, Goal } from '@/src/types';
-import { budgetStatuses, goalProgress, outstandingOf } from '@/src/utils/analytics';
-import { monthLabel } from '@/src/utils/date';
+import { goalProgress, outstandingOf } from '@/src/utils/analytics';
 import { formatCurrency, sanitizeAmountInput } from '@/src/utils/format';
 
-type Tab = 'budgets' | 'goals' | 'debts';
+type Tab = 'goals' | 'debts';
 
-const TABS: Tab[] = ['budgets', 'goals', 'debts'];
+const TABS: Tab[] = ['goals', 'debts'];
 
 export default function PlanScreen() {
   const router = useRouter();
@@ -44,11 +41,11 @@ export default function PlanScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
   const { state, contributeToGoal, repayDebt, deleteDebt, debts: debtTotals, netWorth, totalBalance } =
     useFinance();
-  const { budgets, transactions, categories, goals, debts, profile, rewards } = state;
+  const { goals, debts, profile, rewards } = state;
   const currency = profile.currency;
 
   const [tab, setTab] = useState<Tab>(
-    TABS.includes(params.tab as Tab) ? (params.tab as Tab) : 'budgets'
+    TABS.includes(params.tab as Tab) ? (params.tab as Tab) : 'goals'
   );
   const [contributing, setContributing] = useState<Goal | null>(null);
   const [contribution, setContribution] = useState('');
@@ -60,17 +57,6 @@ export default function PlanScreen() {
   useEffect(() => {
     if (TABS.includes(params.tab as Tab)) setTab(params.tab as Tab);
   }, [params.tab]);
-
-  const statuses = useMemo(
-    () => budgetStatuses(budgets, transactions, categories),
-    [budgets, transactions, categories]
-  );
-
-  const totals = useMemo(() => {
-    const limit = statuses.reduce((sum, item) => sum + item.budget.limit, 0);
-    const spent = statuses.reduce((sum, item) => sum + item.spent, 0);
-    return { limit, spent, remaining: limit - spent, progress: limit === 0 ? 0 : (spent / limit) * 100 };
-  }, [statuses]);
 
   const goalTotals = useMemo(() => {
     const target = goals.reduce((sum, goal) => sum + goal.target, 0);
@@ -147,7 +133,7 @@ export default function PlanScreen() {
         <Animated.View entering={FadeInDown.duration(400)}>
           <AppText variant="h1">Plan</AppText>
           <AppText variant="caption" color={colors.textMuted}>
-            Budgets and savings goals
+            Savings goals and debts
           </AppText>
         </Animated.View>
 
@@ -155,7 +141,6 @@ export default function PlanScreen() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'budgets', label: 'Budgets' },
             { value: 'goals', label: 'Goals' },
             { value: 'debts', label: 'Debts' },
           ]}
@@ -229,92 +214,6 @@ export default function PlanScreen() {
                     />
                   ))}
                 </View>
-              )}
-            </Animated.View>
-          </>
-        ) : tab === 'budgets' ? (
-          <>
-            <Animated.View entering={FadeInDown.duration(420).delay(60)}>
-              <Card>
-                <View style={styles.overview}>
-                  <DonutChart
-                    size={132}
-                    strokeWidth={18}
-                    data={[
-                      { value: Math.min(totals.spent, totals.limit), color: colors.primary },
-                      { value: Math.max(totals.remaining, 0), color: colors.surfaceHigh },
-                    ]}>
-                    <AppText tabular style={styles.overviewPercent}>
-                      {totals.progress.toFixed(0)}%
-                    </AppText>
-                    <AppText variant="caption" color={colors.textMuted}>
-                      used
-                    </AppText>
-                  </DonutChart>
-
-                  <View style={styles.overviewText}>
-                    <AppText variant="caption" color={colors.textMuted}>
-                      {monthLabel(new Date())} budget
-                    </AppText>
-                    <AppText tabular style={styles.overviewValue}>
-                      {formatCurrency(totals.limit, currency, 0)}
-                    </AppText>
-                    <View style={styles.overviewRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        {formatCurrency(totals.spent, currency, 0)} spent
-                      </AppText>
-                    </View>
-                    <View style={styles.overviewRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.surfaceHigh }]} />
-                      <AppText
-                        variant="caption"
-                        color={totals.remaining < 0 ? colors.expense : colors.textSecondary}>
-                        {formatCurrency(Math.abs(totals.remaining), currency, 0)}{' '}
-                        {totals.remaining < 0 ? 'over' : 'left'}
-                      </AppText>
-                    </View>
-                  </View>
-                </View>
-              </Card>
-            </Animated.View>
-
-            <Animated.View entering={FadeInDown.duration(420).delay(120)}>
-              <SectionHeader
-                title="Category limits"
-                subtitle="Tap a budget to adjust it"
-                actionLabel="Add"
-                onAction={() => router.push('/edit-budget')}
-              />
-              {statuses.length === 0 ? (
-                <Card>
-                  <EmptyState
-                    icon="pie-chart-outline"
-                    title="No budgets yet"
-                    body="Set a monthly limit on the categories you want to keep in check."
-                    actionLabel="Create a budget"
-                    onAction={() => router.push('/edit-budget')}
-                  />
-                </Card>
-              ) : (
-                <Card style={styles.listCard}>
-                  {statuses.map((status, index) => (
-                    <View key={status.budget.id}>
-                      {index > 0 ? <View style={styles.divider} /> : null}
-                      <BudgetRow
-                        status={status}
-                        currency={currency}
-                        delay={index * 80}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/edit-budget',
-                            params: { categoryId: status.category.id },
-                          })
-                        }
-                      />
-                    </View>
-                  ))}
-                </Card>
               )}
             </Animated.View>
           </>

@@ -2,16 +2,26 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/src/components/AppText';
-import { colors, spacing } from '@/src/theme';
+import { colors, font, radius, spacing } from '@/src/theme';
+import type { IconName } from '@/src/types';
 
 export type SectionHeaderProps = {
   title: string;
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
+  actionIcon?: IconName;
 };
 
-export function SectionHeader({ title, subtitle, actionLabel, onAction }: SectionHeaderProps) {
+export function SectionHeader({ title, subtitle, actionLabel, onAction, actionIcon }: SectionHeaderProps) {
+  const isAddAction =
+    actionIcon ||
+    (actionLabel &&
+      ['add', 'new', 'record', 'create', 'set'].some((kw) =>
+        actionLabel.toLowerCase().includes(kw)
+      ));
+  const iconName: IconName = actionIcon ?? (isAddAction ? 'add' : 'chevron-forward');
+
   return (
     <View style={styles.row}>
       <View style={styles.titles}>
@@ -27,12 +37,12 @@ export function SectionHeader({ title, subtitle, actionLabel, onAction }: Sectio
         <Pressable
           accessibilityRole="button"
           onPress={onAction}
-          hitSlop={10}
-          style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}>
-          <AppText variant="label" color={colors.primary}>
+          hitSlop={8}
+          style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+          <Ionicons name={iconName} size={15} color={colors.primary} />
+          <AppText variant="label" color={colors.primary} style={styles.actionText}>
             {actionLabel}
           </AppText>
-          <Ionicons name="chevron-forward" size={13} color={colors.primary} />
         </Pressable>
       ) : null}
     </View>
@@ -53,9 +63,23 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: 2,
   },
-  action: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryEdge,
+  },
+  actionText: {
+    fontFamily: font.semibold,
+    fontSize: 12.5,
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.96 }],
   },
 });

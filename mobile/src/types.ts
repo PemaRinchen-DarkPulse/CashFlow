@@ -101,11 +101,14 @@ export type Rewards = {
   badges: { id: string; name: string; icon: IconName; earned: boolean; hint: string }[];
 };
 
+/**
+ * Biometric sign-in is deliberately absent: it belongs to the account, not the
+ * ledger, so it lives in `AuthContext` beside the credentials it guards.
+ */
 export type Settings = {
   hideBalance: boolean;
   budgetAlerts: boolean;
   goalReminders: boolean;
-  biometricLock: boolean;
   weeklyDigest: boolean;
 };
 

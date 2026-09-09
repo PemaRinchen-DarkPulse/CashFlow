@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
+import { BudgetRow } from '@/src/components/BudgetRow';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon, withAlpha } from '@/src/components/CategoryIcon';
 import { Chip } from '@/src/components/Chip';
@@ -18,6 +19,7 @@ import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import {
   breakdownByCategory,
+  budgetStatuses,
   buildInsights,
   changePercent,
   filterRange,
@@ -96,6 +98,11 @@ export default function AnalyticsScreen() {
   const breakdown = useMemo(
     () => breakdownByCategory(data.scoped, categories),
     [data.scoped, categories]
+  );
+
+  const budgetList = useMemo(
+    () => budgetStatuses(budgets, transactions, categories),
+    [budgets, transactions, categories]
   );
 
   const insights = useMemo(
@@ -297,6 +304,46 @@ export default function AnalyticsScreen() {
           </Card>
         </Animated.View>
 
+        {/* Category Budgets */}
+        <Animated.View entering={FadeInDown.duration(420).delay(210)}>
+          <SectionHeader
+            title="Category budgets"
+            subtitle="Tap a budget to adjust it"
+            actionLabel="Add"
+            onAction={() => router.push('/edit-budget')}
+          />
+          {budgetList.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="pie-chart-outline"
+                title="No budgets yet"
+                body="Set a monthly limit on the categories you want to keep in check."
+                actionLabel="Create a budget"
+                onAction={() => router.push('/edit-budget')}
+              />
+            </Card>
+          ) : (
+            <Card style={styles.listCard}>
+              {budgetList.map((status, index) => (
+                <View key={status.budget.id}>
+                  {index > 0 ? <View style={styles.divider} /> : null}
+                  <BudgetRow
+                    status={status}
+                    currency={currency}
+                    delay={index * 80}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/edit-budget',
+                        params: { categoryId: status.category.id },
+                      })
+                    }
+                  />
+                </View>
+              ))}
+            </Card>
+          )}
+        </Animated.View>
+
         {/* Top merchants */}
         {topMerchants.length > 0 ? (
           <Animated.View entering={FadeInDown.duration(420).delay(240)}>
@@ -480,5 +527,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.md,
+  },
+  listCard: {
+    paddingVertical: spacing.sm,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginLeft: 50,
   },
 });

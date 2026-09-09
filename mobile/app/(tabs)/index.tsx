@@ -78,7 +78,7 @@ export default function HomeScreen() {
               <AppText variant="caption" color={colors.textSecondary}>
                 {greeting()},
               </AppText>
-              <AppText variant="h2">{profile.name} 👋</AppText>
+              <AppText variant="h2">{profile.name}</AppText>
             </View>
           </Pressable>
 
@@ -103,7 +103,9 @@ export default function HomeScreen() {
               label="Add"
               icon="add"
               primary
-              onPress={() => router.push('/add-transaction')}
+              onPress={() =>
+                router.push({ pathname: '/add-transaction', params: { kind: 'expense' } })
+              }
             />
             <QuickAction
               label="Income"
@@ -113,7 +115,7 @@ export default function HomeScreen() {
               }
             />
             <QuickAction label="Borrow" icon="people" onPress={() => router.push('/add-debt')} />
-            <QuickAction label="Budgets" icon="pie-chart" onPress={() => router.push('/goals')} />
+            <QuickAction label="Budgets" icon="pie-chart" onPress={() => router.push('/analytics')} />
           </BalanceCard>
         </Animated.View>
 
@@ -235,7 +237,7 @@ export default function HomeScreen() {
               title="Budgets"
               subtitle="Monthly limits"
               actionLabel="Manage"
-              onAction={() => router.push('/goals')}
+              onAction={() => router.push('/analytics')}
             />
             <Card style={styles.tightCard}>
               {summary.budgets.map((status, index) => (

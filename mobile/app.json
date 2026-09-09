@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.pemarinchen12.cashflow"
+      "package": "com.pemarinchen12.cashflow",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "output": "static",
@@ -39,6 +40,13 @@
           "dark": {
             "backgroundColor": "#05090B"
           }
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow CashFlow to use Face ID to sign you in."
         }
       ]
     ],

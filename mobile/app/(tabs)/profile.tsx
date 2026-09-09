@@ -23,6 +23,8 @@ import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { SettingRow } from '@/src/components/SettingRow';
+import { useToast } from '@/src/components/Toast';
+import { useAuth } from '@/src/store/AuthContext';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import { formatDate } from '@/src/utils/date';
@@ -31,16 +33,25 @@ import { formatCurrency, maskAmount } from '@/src/utils/format';
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, totalBalance, streak, updateSetting, updateProfile, resetData, unreadCount } =
+  const { state, totalBalance, streak, updateSetting, updateProfile, resetData, unreadCount, addAccount } =
     useFinance();
+  const { biometrics, biometricEnabled, enableBiometrics, disableBiometrics, signOut } = useAuth();
+  const { showToast } = useToast();
   const { profile, accounts, transactions, settings, rewards, goals } = state;
   const currency = profile.currency;
   const hidden = settings.hideBalance;
 
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [biometricPassword, setBiometricPassword] = useState('');
+  const [enabling, setEnabling] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [draftName, setDraftName] = useState(profile.name);
   const [draftEmail, setDraftEmail] = useState(profile.email);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
+  const [newAccountBalance, setNewAccountBalance] = useState('');
 
   const savedTotal = useMemo(() => goals.reduce((sum, goal) => sum + goal.saved, 0), [goals]);
 
@@ -57,9 +68,52 @@ export default function ProfileScreen() {
     setEditing(false);
   };
 
+  const handleSaveAccount = () => {
+    const name = newAccountName.trim();
+    if (!name) return;
+    addAccount({
+      name,
+      balance: Number(newAccountBalance) || 0,
+    });
+    showToast('Account added successfully', 'success');
+    setNewAccountName('');
+    setNewAccountBalance('');
+    setAddingAccount(false);
+  };
+
   const handleReset = () => {
     resetData();
     setResetting(false);
+  };
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (!value) {
+      await disableBiometrics();
+      showToast('Biometric sign-in is off', 'success');
+      return;
+    }
+    if (!biometrics.enrolled) {
+      showToast('No biometrics enrolled on this device');
+      return;
+    }
+    // Signing in with a fingerprint means unlocking a stored password, so
+    // there has to be one to store — and the account has to be asked for it.
+    setBiometricPassword('');
+    setConfirming(true);
+  };
+
+  const confirmBiometrics = async () => {
+    if (enabling) return;
+    setEnabling(true);
+    const result = await enableBiometrics(biometricPassword);
+    setEnabling(false);
+    if (!result.ok) {
+      if (result.message) showToast(result.message);
+      return;
+    }
+    setConfirming(false);
+    setBiometricPassword('');
+    showToast(`${biometrics.label} sign-in is on`, 'success');
   };
 
   const balanceLabel = formatCurrency(totalBalance, currency);
@@ -138,7 +192,12 @@ export default function ProfileScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.duration(420).delay(120)}>
-          <SectionHeader title="Accounts" subtitle="Where your money sits" />
+          <SectionHeader
+            title="Accounts"
+            subtitle="Where your money sits"
+            actionLabel="Add account"
+            onAction={() => setAddingAccount(true)}
+          />
           <Card style={styles.listCard}>
             {accounts.map((account, index) => {
               const label = formatCurrency(account.balance, currency);
@@ -207,11 +266,15 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <SettingRow
               icon="finger-print"
-              label="Biometric lock"
-              description="Require Face ID or fingerprint on open"
+              label={`${biometrics.label} sign-in`}
+              description={
+                biometrics.enrolled
+                  ? `Unlock CashFlow with ${biometrics.label} instead of your password`
+                  : 'No biometrics are enrolled on this device'
+              }
               accent="#A78BFA"
-              value={settings.biometricLock}
-              onValueChange={(value) => updateSetting('biometricLock', value)}
+              value={biometricEnabled}
+              onValueChange={handleBiometricToggle}
             />
             <View style={styles.divider} />
             <SettingRow
@@ -247,7 +310,7 @@ export default function ProfileScreen() {
               icon="pie-chart-outline"
               label="Manage budgets"
               accent={colors.warning}
-              onPress={() => router.push({ pathname: '/goals', params: { tab: 'budgets' } })}
+              onPress={() => router.push('/analytics')}
             />
             <View style={styles.divider} />
             <SettingRow
@@ -256,6 +319,14 @@ export default function ProfileScreen() {
               description="Restore the sample dataset"
               destructive
               onPress={() => setResetting(true)}
+            />
+            <View style={styles.divider} />
+            <SettingRow
+              icon="log-out-outline"
+              label="Sign out"
+              description="You will need your password or biometrics to get back in"
+              destructive
+              onPress={() => setSigningOut(true)}
             />
           </Card>
         </Animated.View>
@@ -285,7 +356,26 @@ export default function ProfileScreen() {
         onCancel={() => setResetting(false)}
       />
 
-      <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
+      <ConfirmDialog
+        visible={signingOut}
+        icon="log-out-outline"
+        title="Sign out of CashFlow?"
+        message="You will land back on the sign-in screen."
+        detail="Nothing is deleted — your data is waiting when you return."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        onConfirm={() => {
+          setSigningOut(false);
+          signOut();
+        }}
+        onCancel={() => setSigningOut(false)}
+      />
+
+      <Modal
+        visible={editing}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditing(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetBackdrop}>
@@ -324,6 +414,104 @@ export default function ProfileScreen() {
             </View>
 
             <Button label="Save changes" onPress={saveProfile} disabled={!draftName.trim()} />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={confirming}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setConfirming(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirming(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Turn on {biometrics.label}</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              Confirm your password once. It is kept in this device&apos;s secure storage so your{' '}
+              {biometrics.label.toLowerCase()} can sign you in, and never leaves the phone.
+            </AppText>
+
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Password
+              </AppText>
+              <TextInput
+                value={biometricPassword}
+                onChangeText={setBiometricPassword}
+                placeholder="Your password"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+                autoFocus
+                onSubmitEditing={confirmBiometrics}
+              />
+            </View>
+
+            <Button
+              label={`Turn on ${biometrics.label}`}
+              onPress={confirmBiometrics}
+              disabled={!biometricPassword}
+              loading={enabling}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={addingAccount}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddingAccount(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddingAccount(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Add new account</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              Track a new bank account, wallet, or cash reserve.
+            </AppText>
+
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Account name
+              </AppText>
+              <TextInput
+                value={newAccountName}
+                onChangeText={setNewAccountName}
+                placeholder="BOB, BNB, Cash"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                autoFocus
+              />
+            </View>
+
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Initial balance ({currency})
+              </AppText>
+              <TextInput
+                value={newAccountBalance}
+                onChangeText={setNewAccountBalance}
+                placeholder="0.00"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                style={styles.input}
+              />
+            </View>
+
+            <Button
+              label="Add account"
+              icon="add-circle"
+              onPress={handleSaveAccount}
+              disabled={!newAccountName.trim()}
+            />
           </View>
         </KeyboardAvoidingView>
       </Modal>

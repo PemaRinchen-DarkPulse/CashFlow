@@ -60,6 +60,8 @@ export default function AddTransactionScreen() {
   const parsedAmount = Number(amount);
   const valid = Number.isFinite(parsedAmount) && parsedAmount > 0 && !!selectedCategory;
 
+  const hasExplicitKind = params.kind === 'income' || params.kind === 'expense';
+
   const switchKind = (next: TransactionKind) => {
     setKind(next);
     setCategoryId(null);
@@ -128,14 +130,16 @@ export default function AddTransactionScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
-          <Segmented
-            value={kind}
-            onChange={switchKind}
-            options={[
-              { value: 'expense', label: 'Expense' },
-              { value: 'income', label: 'Income' },
-            ]}
-          />
+          {!hasExplicitKind ? (
+            <Segmented
+              value={kind}
+              onChange={switchKind}
+              options={[
+                { value: 'expense', label: 'Expense' },
+                { value: 'income', label: 'Income' },
+              ]}
+            />
+          ) : null}
 
           {/* Amount */}
           <Card style={styles.amountCard}>

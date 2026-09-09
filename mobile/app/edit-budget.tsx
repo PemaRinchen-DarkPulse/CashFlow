@@ -56,7 +56,7 @@ export default function EditBudgetScreen() {
 
   const close = () => {
     if (router.canGoBack()) router.back();
-    else router.replace({ pathname: '/goals', params: { tab: 'budgets' } });
+    else router.replace('/analytics');
   };
 
   const save = () => {

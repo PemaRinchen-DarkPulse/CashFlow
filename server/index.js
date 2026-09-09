@@ -1,21 +1,60 @@
-require('dotenv').config();
-const express = require('express');
 const cors = require('cors');
+const express = require('express');
+
+const config = require('./src/config/env');
+const { connect } = require('./src/db/connect');
+const { errorHandler, notFound } = require('./src/middleware/errorHandler');
+const requireAuth = require('./src/middleware/requireAuth');
+const accountRoutes = require('./src/routes/accounts');
+const authRoutes = require('./src/routes/auth');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors());
-app.use(express.json()); // Parses incoming JSON requests
+app.use(express.json({ limit: '100kb' }));
+// Rate limiting keys on the caller's address, which behind a proxy arrives in
+// X-Forwarded-For rather than on the socket.
+app.set('trust proxy', 1);
 
-// Basic route
+/** Unauthenticated on purpose: a health probe has no session. */
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the CashFlow API' });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// The only routes reachable without a session — signing up and signing in.
+app.use('/api/auth', authRoutes);
+
+/**
+ * Everything else is gated. Mounting the guard on the prefix rather than on
+ * each route means a new endpoint is private by default: a router added under
+ * /api later is protected the moment it is mounted, with no middleware to
+ * forget.
+ */
+app.use('/api', requireAuth);
+
+app.use('/api/accounts', accountRoutes);
+
+app.get('/api/me/summary', (req, res) => {
+  res.json({ user: req.user.toPublic() });
 });
 
+app.use(notFound);
+app.use(errorHandler);
+
+async function start() {
+  try {
+    await connect();
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('MongoDB connection failed:', error.message);
+    process.exit(1);
+  }
+
+  app.listen(config.port, () => {
+    console.log(`Server is running on port ${config.port}`);
+  });
+}
+
+if (require.main === module) start();
+
+module.exports = { app, start };

@@ -210,7 +210,7 @@ export default function TransactionsScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Add transaction"
-        onPress={() => router.push('/add-transaction')}
+        onPress={() => router.push({ pathname: '/add-transaction', params: { kind: 'expense' } })}
         style={({ pressed }) => [
           styles.fab,
           shadow.glow,

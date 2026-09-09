@@ -10,12 +10,16 @@ import {
 
 import { createSeedState } from '@/src/data/seed';
 import { clearState, loadState, saveState } from '@/src/store/storage';
+import { createServerAccount, fetchServerAccounts } from '@/src/api/accountsApi';
+import { useAuth } from '@/src/store/AuthContext';
 import type {
+  Account,
   Budget,
   Category,
   Debt,
   FinanceState,
   Goal,
+  IconName,
   Settings,
   Transaction,
   TransactionKind,
@@ -49,6 +53,8 @@ type Action =
   | { type: 'deleteDebt'; id: string }
   | { type: 'contributeToGoal'; id: string; amount: number }
   | { type: 'deleteGoal'; id: string }
+  | { type: 'addAccount'; account: Account }
+  | { type: 'setAccounts'; accounts: Account[] }
   | { type: 'updateSetting'; key: keyof Settings; value: boolean }
   | { type: 'updateProfile'; name: string; email: string }
   | { type: 'readNotifications' }
@@ -195,6 +201,12 @@ function reducer(state: FinanceState, action: Action): FinanceState {
       };
     }
 
+    case 'addAccount':
+      return { ...state, accounts: [...state.accounts, action.account] };
+
+    case 'setAccounts':
+      return { ...state, accounts: action.accounts };
+
     case 'updateSetting':
       return { ...state, settings: { ...state.settings, [action.key]: action.value } };
 
@@ -234,6 +246,7 @@ type FinanceContextValue = {
   addGoal: (input: Omit<Goal, 'id'>) => void;
   contributeToGoal: (id: string, amount: number) => void;
   deleteGoal: (id: string) => void;
+  addAccount: (input: { name: string; balance?: number; color?: string; icon?: IconName; last4?: string }) => void;
   addDebt: (input: Omit<Debt, 'id' | 'repaid'> & { repaid?: number }) => void;
   repayDebt: (id: string, amount: number) => void;
   deleteDebt: (id: string) => void;
@@ -251,6 +264,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const hydratedRef = useRef(false);
   const [hydrated, setHydrated] = useReducer(() => true, false);
 
+  const auth = useAuth();
+  const token = auth?.token;
+
   useEffect(() => {
     let active = true;
     loadState().then((loaded) => {
@@ -263,6 +279,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, []);
+
+  // Fetch accounts from MongoDB server when authenticated
+  useEffect(() => {
+    if (!token) return;
+    fetchServerAccounts(token).then((res) => {
+      if (res.ok && res.data.accounts.length > 0) {
+        dispatch({ type: 'setAccounts', accounts: res.data.accounts });
+      }
+    });
+  }, [token]);
 
   // Persist after hydration only, so the seed never overwrites saved data.
   useEffect(() => {
@@ -306,6 +332,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addGoal: (input) => dispatch({ type: 'addGoal', goal: { ...input, id: makeId('goal') } }),
       contributeToGoal: (id, amount) => dispatch({ type: 'contributeToGoal', id, amount }),
       deleteGoal: (id) => dispatch({ type: 'deleteGoal', id }),
+      addAccount: (input) => {
+        const account: Account = {
+          id: makeId('acc'),
+          name: input.name.trim(),
+          balance: Math.round((input.balance || 0) * 100) / 100,
+          color: input.color || '#4DA3FF',
+          icon: input.icon || 'wallet',
+          last4: input.last4?.trim() || String(Math.floor(1000 + Math.random() * 9000)),
+        };
+        dispatch({ type: 'addAccount', account });
+        if (token) {
+          createServerAccount(token, input).catch(() => {});
+        }
+      },
 
       addDebt: (input) =>
         dispatch({
