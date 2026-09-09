@@ -3,7 +3,6 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +19,7 @@ import { AppText } from '@/src/components/AppText';
 import { BudgetRow } from '@/src/components/BudgetRow';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
+import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { DebtCard } from '@/src/components/DebtCard';
 import { DonutChart } from '@/src/components/charts/DonutChart';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -54,6 +54,7 @@ export default function PlanScreen() {
   const [contribution, setContribution] = useState('');
   const [repaying, setRepaying] = useState<Debt | null>(null);
   const [repayment, setRepayment] = useState('');
+  const [deletingDebt, setDeletingDebt] = useState<Debt | null>(null);
 
   // Deep links from Home carry the tab to open.
   useEffect(() => {
@@ -119,15 +120,10 @@ export default function PlanScreen() {
     closeRepayment();
   };
 
-  const confirmDeleteDebt = (debt: Debt) => {
-    Alert.alert(
-      `Remove ${debt.person}'s record?`,
-      'Any amount still outstanding will be taken back out of your balance.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => deleteDebt(debt.id) },
-      ]
-    );
+  const handleDeleteDebt = () => {
+    if (!deletingDebt) return;
+    deleteDebt(deletingDebt.id);
+    setDeletingDebt(null);
   };
 
   const repayOutstanding = repaying ? outstandingOf(repaying) : 0;
@@ -229,7 +225,7 @@ export default function PlanScreen() {
                       currency={currency}
                       delay={index * 80}
                       onRepay={() => setRepaying(debt)}
-                      onDelete={() => confirmDeleteDebt(debt)}
+                      onDelete={() => setDeletingDebt(debt)}
                     />
                   ))}
                 </View>
@@ -394,6 +390,27 @@ export default function PlanScreen() {
           </Pressable>
         </Animated.View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={!!deletingDebt}
+        title="Delete this record?"
+        message={
+          deletingDebt
+            ? `The ${deletingDebt.direction === 'borrowed' ? 'money you borrowed from' : 'money you lent'} ${deletingDebt.person} will no longer be tracked.`
+            : ''
+        }
+        detail={
+          deletingDebt && outstandingOf(deletingDebt) > 0
+            ? `${formatCurrency(outstandingOf(deletingDebt), currency)} is still outstanding and will be ${
+                deletingDebt.direction === 'borrowed' ? 'taken back out of' : 'returned to'
+              } your balance.`
+            : undefined
+        }
+        confirmLabel="Yes, delete it"
+        cancelLabel="Keep it"
+        onConfirm={handleDeleteDebt}
+        onCancel={() => setDeletingDebt(null)}
+      />
 
       {/* Repayment sheet */}
       <Modal visible={!!repaying} transparent animationType="slide" onRequestClose={closeRepayment}>

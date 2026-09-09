@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +19,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
+import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { SettingRow } from '@/src/components/SettingRow';
@@ -38,6 +38,7 @@ export default function ProfileScreen() {
   const hidden = settings.hideBalance;
 
   const [editing, setEditing] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [draftName, setDraftName] = useState(profile.name);
   const [draftEmail, setDraftEmail] = useState(profile.email);
 
@@ -56,15 +57,9 @@ export default function ProfileScreen() {
     setEditing(false);
   };
 
-  const confirmReset = () => {
-    Alert.alert(
-      'Reset all data?',
-      'This clears your transactions, budgets and goals, and restores the sample data.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: resetData },
-      ]
-    );
+  const handleReset = () => {
+    resetData();
+    setResetting(false);
   };
 
   const balanceLabel = formatCurrency(totalBalance, currency);
@@ -260,7 +255,7 @@ export default function ProfileScreen() {
               label="Reset all data"
               description="Restore the sample dataset"
               destructive
-              onPress={confirmReset}
+              onPress={() => setResetting(true)}
             />
           </Card>
         </Animated.View>
@@ -277,6 +272,18 @@ export default function ProfileScreen() {
           </AppText>
         </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={resetting}
+        icon="refresh"
+        title="Erase everything?"
+        message="Every transaction, budget, goal and debt you have entered will be wiped and the sample data restored."
+        detail="This cannot be undone."
+        confirmLabel="Yes, erase it all"
+        cancelLabel="Keep my data"
+        onConfirm={handleReset}
+        onCancel={() => setResetting(false)}
+      />
 
       <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
         <KeyboardAvoidingView

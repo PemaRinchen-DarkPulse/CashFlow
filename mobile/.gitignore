@@ -9,6 +9,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.eas/
+credentials.json
 
 # Test / build output
 coverage/

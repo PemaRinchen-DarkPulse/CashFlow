@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/src/components/AppText';
 import { Card } from '@/src/components/Card';
 import { withAlpha } from '@/src/components/CategoryIcon';
+import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { EmptyState } from '@/src/components/EmptyState';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
@@ -24,6 +25,7 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { state, markNotificationsRead, clearNotifications } = useFinance();
   const { notifications } = state;
+  const [clearing, setClearing] = useState(false);
 
   // Opening the screen is the read receipt.
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function NotificationsScreen() {
             notifications.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={clearNotifications}
+                onPress={() => setClearing(true)}
                 hitSlop={8}
                 style={({ pressed }) => [styles.clear, pressed && { opacity: 0.6 }]}>
                 <AppText variant="label" color={colors.textSecondary}>
@@ -88,6 +90,19 @@ export default function NotificationsScreen() {
           })
         )}
       </ScrollView>
+
+      <ConfirmDialog
+        visible={clearing}
+        title="Clear all updates?"
+        message={`All ${notifications.length} notification${notifications.length === 1 ? '' : 's'} will be removed from this list.`}
+        confirmLabel="Yes, clear them"
+        cancelLabel="Keep them"
+        onConfirm={() => {
+          clearNotifications();
+          setClearing(false);
+        }}
+        onCancel={() => setClearing(false)}
+      />
     </ScreenBackground>
   );
 }

@@ -15,6 +15,7 @@ import { AppText } from '@/src/components/AppText';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
+import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { ProgressBar } from '@/src/components/ProgressBar';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
@@ -38,6 +39,7 @@ export default function EditBudgetScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(params.categoryId ?? null);
   const existing = budgets.find((budget) => budget.categoryId === categoryId);
   const [limit, setLimit] = useState(existing ? String(existing.limit) : '');
+  const [removing, setRemoving] = useState(false);
 
   const status = useMemo(
     () =>
@@ -66,6 +68,7 @@ export default function EditBudgetScreen() {
   const remove = () => {
     if (!existing) return;
     deleteBudget(existing.id);
+    setRemoving(false);
     close();
   };
 
@@ -188,11 +191,27 @@ export default function EditBudgetScreen() {
               disabled={!valid}
             />
             {existing ? (
-              <Button label="Remove budget" variant="danger" icon="trash-outline" onPress={remove} />
+              <Button
+                label="Remove budget"
+                variant="danger"
+                icon="trash-outline"
+                onPress={() => setRemoving(true)}
+              />
             ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ConfirmDialog
+        visible={removing}
+        title="Remove this budget?"
+        message={`The monthly limit on ${status?.category.name ?? 'this category'} will be removed.`}
+        detail="Spending in it keeps being tracked — you just stop seeing a limit and warnings."
+        confirmLabel="Yes, remove it"
+        cancelLabel="Keep it"
+        onConfirm={remove}
+        onCancel={() => setRemoving(false)}
+      />
     </ScreenBackground>
   );
 }

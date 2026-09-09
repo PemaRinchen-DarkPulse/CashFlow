@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +9,7 @@ import { AppText } from '@/src/components/AppText';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
+import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { EmptyState } from '@/src/components/EmptyState';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
@@ -23,6 +25,8 @@ export default function TransactionDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state, deleteTransaction } = useFinance();
+  // Declared before the not-found early return so hook order stays stable.
+  const [confirming, setConfirming] = useState(false);
 
   const transaction = state.transactions.find((item) => item.id === id);
 
@@ -52,18 +56,10 @@ export default function TransactionDetailScreen() {
   const account = state.accounts.find((item) => item.id === transaction.accountId);
   const isIncome = transaction.kind === 'income';
 
-  const confirmDelete = () => {
-    Alert.alert('Delete transaction?', 'Your balance will be adjusted to match.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteTransaction(transaction.id);
-          goBack();
-        },
-      },
-    ]);
+  const handleDelete = () => {
+    deleteTransaction(transaction.id);
+    setConfirming(false);
+    goBack();
   };
 
   const rows: { label: string; value: string; icon: IconName }[] = [
@@ -138,10 +134,30 @@ export default function TransactionDetailScreen() {
         ) : null}
 
         <View style={styles.actions}>
-          <Button label="Delete transaction" variant="danger" icon="trash-outline" onPress={confirmDelete} />
+          <Button
+            label="Delete transaction"
+            variant="danger"
+            icon="trash-outline"
+            onPress={() => setConfirming(true)}
+          />
           <Button label="Back to activity" variant="ghost" onPress={goBack} />
         </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirming}
+        title="Delete this?"
+        message={`"${transaction.title}" will be removed from your records for good.`}
+        detail={`Your balance will change by ${formatSigned(
+          transaction.amount,
+          isIncome ? 'expense' : 'income',
+          state.profile.currency
+        )} to undo it.`}
+        confirmLabel="Yes, delete it"
+        cancelLabel="Keep it"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirming(false)}
+      />
     </ScreenBackground>
   );
 }
