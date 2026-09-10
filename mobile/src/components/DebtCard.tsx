@@ -16,10 +16,9 @@ export type DebtCardProps = {
   currency: string;
   onRepay?: () => void;
   onDelete?: () => void;
-  delay?: number;
 };
 
-export function DebtCard({ debt, currency, onRepay, onDelete, delay = 0 }: DebtCardProps) {
+export function DebtCard({ debt, currency, onRepay, onDelete }: DebtCardProps) {
   const outstanding = outstandingOf(debt);
   const settled = outstanding <= 0;
   const borrowed = debt.direction === 'borrowed';
@@ -59,7 +58,7 @@ export function DebtCard({ debt, currency, onRepay, onDelete, delay = 0 }: DebtC
         </View>
       </View>
 
-      <ProgressBar value={progress} color={settled ? colors.primary : tone} delay={delay} />
+      <ProgressBar value={progress} color={settled ? colors.primary : tone} />
 
       <View style={styles.footer}>
         <AppText variant="caption" color={colors.textMuted} numberOfLines={1} style={styles.note}>

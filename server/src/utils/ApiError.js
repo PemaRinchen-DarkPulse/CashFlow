@@ -25,6 +25,11 @@ class ApiError extends Error {
   static conflict(code, message) {
     return new ApiError(409, code, message);
   }
+
+  /** A service this server depends on failed, rather than the request being bad. */
+  static badGateway(code, message) {
+    return new ApiError(502, code, message);
+  }
 }
 
 module.exports = ApiError;

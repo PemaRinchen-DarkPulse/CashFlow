@@ -7,6 +7,8 @@ const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const requireAuth = require('./src/middleware/requireAuth');
 const accountRoutes = require('./src/routes/accounts');
 const authRoutes = require('./src/routes/auth');
+const goalRoutes = require('./src/routes/goals');
+const incomeRoutes = require('./src/routes/incomes');
 
 const app = express();
 
@@ -33,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api', requireAuth);
 
 app.use('/api/accounts', accountRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/incomes', incomeRoutes);
 
 app.get('/api/me/summary', (req, res) => {
   res.json({ user: req.user.toPublic() });

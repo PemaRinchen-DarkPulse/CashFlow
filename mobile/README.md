@@ -44,10 +44,15 @@ src/components/          UI primitives, cards, rows and SVG charts
   everyone settles up.
 - **Derived values stay derived**: the tracking streak, budget status and every chart are
   computed from the ledger, so no screen can drift out of sync with another.
-- **Charts** are hand-drawn with `react-native-svg` (donut, sparkline) and Reanimated
-  (animated bars and progress), so there is no charting dependency to keep current.
+- **Charts** are hand-drawn with `react-native-svg` (donut, sparkline) and plain views
+  (bars and progress), so there is no charting dependency to keep current.
+- **No animation anywhere**: screens, modals and toasts appear outright, and progress
+  bars render at their value. Nothing fades, slides or eases in.
 
-All data is local to the device. There is no backend and no network calls.
+Accounts live in the server's database — the phone reads them back on sign-in, and adding
+or removing one is a write to `/api/accounts` before it shows up in the list. Everything
+else (transactions, budgets, goals, debts) is still local to the device, so the balance an
+account carries is pushed up whenever the ledger moves it.
 
 ## Design
 

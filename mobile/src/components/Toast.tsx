@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -45,25 +45,20 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 /**
  * A single toast slot anchored to the top right. It appears and clears
- * outright — no slide, no fade — so a message is in front of you the instant
- * it happens. The only moving part is the bar draining along the bottom, which
- * is what shows how long is left. One at a time: a new message replaces
- * whatever is showing rather than stacking, so a run of failed attempts cannot
- * bury the screen.
+ * outright — no slide, no fade, nothing moving — so a message is in front of
+ * you the instant it happens. One at a time: a new message replaces whatever
+ * is showing rather than stacking, so a run of failed attempts cannot bury the
+ * screen.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<Toast | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Drains 1 → 0 across the toast's life. Width percentages cannot go through
-  // the native driver, so this one animates on the JS thread.
-  const remaining = useRef(new Animated.Value(1)).current;
 
   const clearTimer = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    remaining.stopAnimation();
-  }, [remaining]);
+  }, []);
 
   useEffect(() => clearTimer, [clearTimer]);
 
@@ -78,13 +73,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       clearTimer();
       setToast({ id: Date.now(), message, tone });
 
-      remaining.setValue(1);
-      Animated.timing(remaining, {
-        toValue: 0,
-        duration: TOAST_MS,
-        useNativeDriver: false,
-      }).start();
-
       if (tone === 'error') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       } else if (tone === 'success') {
@@ -93,7 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       timer.current = setTimeout(() => setToast(null), TOAST_MS);
     },
-    [clearTimer, remaining]
+    [clearTimer]
   );
 
   const value = useMemo(() => ({ showToast, hideToast }), [showToast, hideToast]);
@@ -129,18 +117,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </Pressable>
               </View>
 
-              <Animated.View
-                style={[
-                  styles.bar,
-                  {
-                    backgroundColor: tone.tint,
-                    width: remaining.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                  },
-                ]}
-              />
+              <View style={[styles.bar, { backgroundColor: tone.tint }]} />
             </View>
           </View>
         ) : null}
@@ -173,7 +150,7 @@ const styles = StyleSheet.create({
     // still reads as a pill. 10 keeps the corners soft without rounding away
     // the shape.
     borderRadius: 10,
-    // Keeps the drain bar inside the rounded bottom corners.
+    // Keeps the accent bar inside the rounded bottom corners.
     overflow: 'hidden',
     ...shadow.card,
   },

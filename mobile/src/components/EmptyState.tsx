@@ -12,6 +12,11 @@ export type EmptyStateProps = {
   body?: string;
   actionLabel?: string;
   onAction?: () => void;
+  /**
+   * Tightens the vertical rhythm for a notice that sits among other content
+   * rather than standing in for a whole screen's worth of it.
+   */
+  compact?: boolean;
 };
 
 export function EmptyState({
@@ -20,11 +25,12 @@ export function EmptyState({
   body,
   actionLabel,
   onAction,
+  compact = false,
 }: EmptyStateProps) {
   return (
-    <View style={styles.root}>
-      <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={26} color={colors.primary} />
+    <View style={[styles.root, compact && styles.rootCompact]}>
+      <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
+        <Ionicons name={icon} size={compact ? 22 : 26} color={colors.primary} />
       </View>
       <AppText variant="h3" center>
         {title}
@@ -35,7 +41,12 @@ export function EmptyState({
         </AppText>
       ) : null}
       {actionLabel && onAction ? (
-        <Button label={actionLabel} onPress={onAction} fullWidth={false} style={styles.action} />
+        <Button
+          label={actionLabel}
+          onPress={onAction}
+          fullWidth={false}
+          style={compact ? styles.actionCompact : styles.action}
+        />
       ) : null}
     </View>
   );
@@ -47,6 +58,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxxl,
     paddingHorizontal: spacing.xl,
   },
+  rootCompact: {
+    paddingVertical: spacing.xl,
+  },
   iconWrap: {
     width: 62,
     height: 62,
@@ -56,6 +70,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
+  iconWrapCompact: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginBottom: spacing.md,
+  },
   body: {
     marginTop: spacing.sm,
     maxWidth: 280,
@@ -64,5 +84,9 @@ const styles = StyleSheet.create({
   action: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.xxxl,
+  },
+  actionCompact: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.xxl,
   },
 });

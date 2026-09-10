@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/src/components/AppText';
+import { Skeleton } from '@/src/components/Skeleton';
 import { colors, font, radius, shadow, spacing } from '@/src/theme';
 import { formatCurrency, maskAmount } from '@/src/utils/format';
 
@@ -14,6 +15,12 @@ export type BalanceCardProps = {
   onToggleHidden: () => void;
   /** Quick action row, rendered inside the card. */
   children?: ReactNode;
+  /**
+   * Set while the accounts this totals are still being read. Without it the
+   * card shows a confident zero and then jumps to the real figure — the one
+   * number on the screen nobody should have to watch change.
+   */
+  loading?: boolean;
 };
 
 export function BalanceCard({
@@ -22,6 +29,7 @@ export function BalanceCard({
   hidden,
   onToggleHidden,
   children,
+  loading = false,
 }: BalanceCardProps) {
   const amount = formatCurrency(balance, currency);
 
@@ -53,9 +61,14 @@ export function BalanceCard({
         </Pressable>
       </View>
 
-      <AppText tabular style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
-        {hidden ? maskAmount(amount) : amount}
-      </AppText>
+      {loading ? (
+        // Matched to the figure's own line height, so the card keeps its size.
+        <Skeleton width="64%" height={36} radius={radius.sm} style={styles.amountLoading} />
+      ) : (
+        <AppText tabular style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
+          {hidden ? maskAmount(amount) : amount}
+        </AppText>
+      )}
 
       {children ? <View style={styles.actions}>{children}</View> : null}
     </View>
@@ -92,6 +105,12 @@ const styles = StyleSheet.create({
     letterSpacing: -1.4,
     color: colors.text,
     marginTop: spacing.sm,
+  },
+  amountLoading: {
+    marginTop: spacing.sm,
+    // The gradient behind is lighter than a plain surface, so the block is
+    // lifted to stay visible against it.
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   actions: {
     flexDirection: 'row',

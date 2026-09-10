@@ -1,10 +1,10 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/src/components/AppText';
-import { colors, radius, spacing } from '@/src/theme';
+import { BackButton, BackButtonSpacer } from '@/src/components/BackButton';
+import { colors, spacing } from '@/src/theme';
 
 export type ScreenHeaderProps = {
   title: string;
@@ -32,18 +32,7 @@ export function ScreenHeader({
 
   return (
     <View style={styles.root}>
-      {showBack ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={handleBack}
-          hitSlop={8}
-          style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-        </Pressable>
-      ) : (
-        <View style={styles.spacer} />
-      )}
+      {showBack ? <BackButton onPress={handleBack} /> : <BackButtonSpacer />}
 
       <View style={styles.titles}>
         <AppText variant="h3" center numberOfLines={1}>
@@ -56,7 +45,7 @@ export function ScreenHeader({
         ) : null}
       </View>
 
-      <View style={styles.right}>{right ?? <View style={styles.spacer} />}</View>
+      <View style={styles.right}>{right ?? <BackButtonSpacer />}</View>
     </View>
   );
 }
@@ -67,20 +56,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spacer: {
-    width: 40,
-    height: 40,
   },
   titles: {
     flex: 1,

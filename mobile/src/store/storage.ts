@@ -10,6 +10,13 @@ import type { FinanceState } from '@/src/types';
 const STORAGE_KEY = 'cashflow:state:v4';
 
 /**
+ * Everything the app keeps on the device. Accounts are the one part of the
+ * ledger that is not on this list: they belong to the server, and are read back
+ * from it on every launch rather than remembered here.
+ */
+type PersistedState = Omit<FinanceState, 'accounts'>;
+
+/**
  * Merges a persisted blob over a fresh seed so that a state shape added in a
  * later release never lands as `undefined` on an existing install.
  */
@@ -20,7 +27,11 @@ function reconcile(raw: unknown): FinanceState {
 
   return {
     profile: { ...seed.profile, ...saved.profile },
-    accounts: saved.accounts?.length ? saved.accounts : seed.accounts,
+    // Never restored, even from a blob written by an older build that saved
+    // them: the list starts empty and is whatever the server answers with. A
+    // stale copy shown while that request is in flight would be a balance the
+    // user cannot act on and might not still hold.
+    accounts: [],
     // Categories are code-owned, not user data.
     categories: ALL_CATEGORIES,
     transactions: saved.transactions ?? seed.transactions,
@@ -46,7 +57,11 @@ export async function loadState(): Promise<FinanceState> {
 
 export async function saveState(state: FinanceState): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Dropping accounts here is also what clears them from a device that still
+    // holds a set written by an older build: the first save overwrites the blob
+    // without them.
+    const { accounts: _accounts, ...persisted } = state;
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(persisted satisfies PersistedState));
   } catch {
     // Persistence is best-effort; the in-memory state stays authoritative.
   }

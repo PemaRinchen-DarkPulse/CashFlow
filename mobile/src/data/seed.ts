@@ -173,32 +173,11 @@ export function createSeedState(now = new Date()): FinanceState {
       memberSince,
       currency: 'Nu.',
     },
-    accounts: [
-      {
-        id: 'acc-everyday',
-        name: 'Everyday',
-        last4: '4821',
-        balance: 8412.6,
-        color: '#1DD75B',
-        icon: 'card',
-      },
-      {
-        id: 'acc-savings',
-        name: 'Savings',
-        last4: '9073',
-        balance: 9930.7,
-        color: '#4DA3FF',
-        icon: 'shield-checkmark',
-      },
-      {
-        id: 'acc-cash',
-        name: 'Cash',
-        last4: '0000',
-        balance: 399,
-        color: '#FFB020',
-        icon: 'cash',
-      },
-    ],
+    // Deliberately empty. Every other list here is sample data the app can make
+    // up, but accounts belong to the server: seeding three of them would put a
+    // stranger's demo balances into a real user's database the first time their
+    // device synced. A signed-in user with none is shown how to add their first.
+    accounts: [],
     categories: ALL_CATEGORIES,
     transactions: generateTransactions(now),
     budgets: [

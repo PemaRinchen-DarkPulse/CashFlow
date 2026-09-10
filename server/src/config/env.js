@@ -50,6 +50,54 @@ if (!process.env.BREVO_API_KEY.startsWith('xkeysib-')) {
 
 const ONE_DAY_SECONDS = 24 * 60 * 60;
 
+/**
+ * Filebase — S3-compatible object storage.
+ *
+ * Deliberately not in the required list above. The server is useful without it
+ * and every existing route works untouched, so a blank key here stops only the
+ * uploads that actually need one rather than refusing to boot for everyone.
+ * `configured` is what those routes check, so the failure is a clear message at
+ * the point of use instead of a malformed request to Filebase.
+ */
+const filebase = {
+  accessKeyId: process.env.FILEBASE_ACCESS_KEY || '',
+  secretAccessKey: process.env.FILEBASE_SECRET_KEY || '',
+  bucket: process.env.FILEBASE_BUCKET || '',
+  // Filebase's S3 gateway. It speaks the S3 API, so any S3 client works
+  // against it as long as `forcePathStyle` is on — it addresses buckets as
+  // s3.filebase.com/bucket, not bucket.s3.filebase.com.
+  endpoint: process.env.FILEBASE_ENDPOINT || 'https://s3.filebase.com',
+  region: process.env.FILEBASE_REGION || 'us-east-1',
+};
+
+filebase.configured = Boolean(
+  filebase.accessKeyId && filebase.secretAccessKey && filebase.bucket
+);
+
+if (!filebase.configured) {
+  // A note, not an error: this is the expected state until the keys are filled
+  // in, and saying so once at boot beats discovering it on a failed upload.
+  console.warn('Filebase is not configured — file uploads are disabled.');
+  console.warn('Set FILEBASE_ACCESS_KEY, FILEBASE_SECRET_KEY and FILEBASE_BUCKET in .env.');
+} else {
+  /**
+   * S3 bucket names are lowercase only, 3–63 characters, and may hold digits,
+   * hyphens and dots. A capital letter is the easy mistake — the name looks
+   * right, and the failure arrives much later as an upload that "does not
+   * work", naming nothing that leads back to here.
+   */
+  const BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+  if (!BUCKET_NAME.test(filebase.bucket)) {
+    console.warn(`FILEBASE_BUCKET "${filebase.bucket}" is not a valid bucket name.`);
+    if (filebase.bucket !== filebase.bucket.toLowerCase()) {
+      console.warn(`Bucket names cannot contain capitals — did you mean "${filebase.bucket.toLowerCase()}"?`);
+    } else {
+      console.warn('Use 3–63 characters: lowercase letters, digits, dots and hyphens.');
+    }
+    console.warn('Uploads will fail until this is corrected.');
+  }
+}
+
 module.exports = {
   port: Number(process.env.PORT) || 5000,
   mongoUri,
@@ -76,4 +124,6 @@ module.exports = {
     fromEmail: process.env.EMAIL_FROM,
     fromName: process.env.EMAIL_FROM_NAME || 'CashFlow',
   },
+
+  filebase,
 };

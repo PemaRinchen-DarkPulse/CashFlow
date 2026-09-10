@@ -1,7 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -68,9 +67,7 @@ export default function NotificationsScreen() {
           notifications.map((notification, index) => {
             const tone = TONE_COLOR[notification.tone];
             return (
-              <Animated.View
-                key={notification.id}
-                entering={FadeInDown.duration(360).delay(index * 60)}>
+              <View key={notification.id}>
                 <Card style={styles.card}>
                   <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
                     <Ionicons name={notification.icon} size={18} color={tone} />
@@ -85,7 +82,7 @@ export default function NotificationsScreen() {
                     </AppText>
                   </View>
                 </Card>
-              </Animated.View>
+              </View>
             );
           })
         )}

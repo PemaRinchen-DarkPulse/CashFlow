@@ -1,5 +1,4 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 import { AppText } from '@/src/components/AppText';
 import { Button } from '@/src/components/Button';
@@ -31,10 +30,10 @@ export function SuccessOverlay({
 }: SuccessOverlayProps) {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onPrimary}>
-      <Animated.View entering={FadeIn.duration(180)} style={styles.backdrop}>
+      <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onSecondary ?? onPrimary} />
 
-        <Animated.View entering={ZoomIn.springify().damping(16)} style={styles.card}>
+        <View style={styles.card}>
           <View style={styles.iconWrap}>
             <CategoryIcon icon="checkmark" color={colors.primary} size={52} />
           </View>
@@ -50,8 +49,8 @@ export function SuccessOverlay({
           {secondaryLabel && onSecondary ? (
             <Button label={secondaryLabel} variant="ghost" onPress={onSecondary} />
           ) : null}
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </View>
     </Modal>
   );
 }

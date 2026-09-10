@@ -10,6 +10,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -39,33 +40,23 @@ function RootNavigator() {
     if (status !== 'loading') SplashScreen.hideAsync().catch(() => {});
   }, [status]);
 
-  if (status === 'loading') return null;
+  // Same reasoning as above: the keychain read is quick, but a blank frame in
+  // the middle of it would still be a white one.
+  if (status === 'loading') return <View style={styles.root} />;
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.bg },
-        animation: 'slide_from_right',
+        animation: 'none',
       }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="add-transaction"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="add-goal"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="add-debt"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="edit-budget"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
+        <Stack.Screen name="add-transaction" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add-goal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add-debt" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="edit-budget" options={{ presentation: 'modal' }} />
         <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="rewards" />
@@ -87,10 +78,16 @@ export default function RootLayout() {
     Inter_800ExtraBold,
   });
 
-  if (!loaded && !error) return null;
+  /**
+   * Painted rather than left empty. Returning `null` here mounts nothing at
+   * all, so for as long as the fonts take there is no view of ours on screen
+   * and the host's own white root shows through — which is the flash of white
+   * between the splash and the first screen.
+   */
+  if (!loaded && !error) return <View style={styles.root} />;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
+    <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ToastProvider>
           <AuthProvider>
@@ -104,3 +101,11 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  /** The app's canvas, held under every state the root can be in. */
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+});

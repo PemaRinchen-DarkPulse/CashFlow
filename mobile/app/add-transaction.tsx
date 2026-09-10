@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,13 +11,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
+import { BackButton } from '@/src/components/BackButton';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
-import { CategoryIcon } from '@/src/components/CategoryIcon';
+import { withAlpha } from '@/src/components/CategoryIcon';
+import { DateField } from '@/src/components/DateField';
+import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { Segmented } from '@/src/components/Segmented';
@@ -25,13 +27,21 @@ import { SuccessOverlay } from '@/src/components/SuccessOverlay';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { TransactionKind } from '@/src/types';
-import { addDays, formatDayHeading } from '@/src/utils/date';
+import { isSameDay } from '@/src/utils/date';
 import { formatCurrency, sanitizeAmountInput } from '@/src/utils/format';
 
-/** The last week, newest first — enough for logging things you forgot. */
-function recentDays(): Date[] {
+/**
+ * Keep the logged time realistic: something entered today happened just now, so
+ * it takes the current clock. A day picked from the calendar has no time of its
+ * own, so it lands at noon — far enough from either midnight boundary that a
+ * timezone shift cannot slide it onto the wrong day.
+ */
+function stampTime(day: Date): Date {
   const now = new Date();
-  return Array.from({ length: 7 }, (_, index) => addDays(now, -index));
+  if (isSameDay(day, now)) return now;
+  const date = new Date(day);
+  date.setHours(12, 0, 0, 0);
+  return date;
 }
 
 export default function AddTransactionScreen() {
@@ -45,8 +55,8 @@ export default function AddTransactionScreen() {
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
-  const [dayOffset, setDayOffset] = useState(0);
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? 'acc-everyday');
+  const [date, setDate] = useState(() => new Date());
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ amount: number; title: string } | null>(null);
 
@@ -55,12 +65,24 @@ export default function AddTransactionScreen() {
     [categories, kind]
   );
 
-  const days = useMemo(recentDays, []);
+  // The list is read back from the server, so it can arrive after this screen is
+  // already open — and an account can be removed from the profile while it is.
+  useEffect(() => {
+    if (accounts.some((account) => account.id === accountId)) return;
+    setAccountId(accounts[0]?.id ?? '');
+  }, [accounts, accountId]);
+
   const selectedCategory = available.find((category) => category.id === categoryId);
   const parsedAmount = Number(amount);
-  const valid = Number.isFinite(parsedAmount) && parsedAmount > 0 && !!selectedCategory;
+  // Without an account there is nothing to move the money out of, so saving is
+  // held back until one exists rather than booking against an account that does
+  // not.
+  const valid =
+    Number.isFinite(parsedAmount) && parsedAmount > 0 && !!selectedCategory && accounts.length > 0;
 
   const hasExplicitKind = params.kind === 'income' || params.kind === 'expense';
+  /** The one colour that says which way the money is going. */
+  const tone = kind === 'income' ? colors.income : colors.expense;
 
   const switchKind = (next: TransactionKind) => {
     setKind(next);
@@ -72,23 +94,19 @@ export default function AddTransactionScreen() {
     setTitle('');
     setNote('');
     setCategoryId(null);
-    setDayOffset(0);
+    setDate(new Date());
     setSaved(null);
   };
 
   const handleSave = () => {
     if (!valid || !selectedCategory) return;
 
-    // Keep the logged time realistic: today's entries land "now", older ones at noon.
-    const date = addDays(new Date(), -dayOffset);
-    if (dayOffset > 0) date.setHours(12, 0, 0, 0);
-
     const transaction = addTransaction({
       title: title.trim() || selectedCategory.name,
       categoryId: selectedCategory.id,
       amount: parsedAmount,
       kind,
-      date: date.toISOString(),
+      date: stampTime(date).toISOString(),
       note,
       accountId,
     });
@@ -112,16 +130,9 @@ export default function AddTransactionScreen() {
             title={kind === 'income' ? 'Add income' : 'Add expense'}
             subtitle="Log it while it's fresh"
             onBack={close}
-            right={
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                onPress={close}
-                hitSlop={8}
-                style={({ pressed }) => [styles.close, pressed && { opacity: 0.6 }]}>
-                <Ionicons name="close" size={19} color={colors.text} />
-              </Pressable>
-            }
+            // The same control as the back button, wearing a cross, so the two
+            // corners of the header match.
+            right={<BackButton variant="close" onPress={close} />}
             showBack={false}
           />
         </View>
@@ -130,6 +141,11 @@ export default function AddTransactionScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
+          <NoAccountsNotice
+            title="Add an account first"
+            body={`Every ${kind === 'income' ? 'payment in' : 'expense'} is recorded against an account, and you do not have one yet.`}
+          />
+
           {!hasExplicitKind ? (
             <Segmented
               value={kind}
@@ -141,27 +157,43 @@ export default function AddTransactionScreen() {
             />
           ) : null}
 
-          {/* Amount */}
-          <Card style={styles.amountCard}>
-            <AppText variant="label" color={colors.textMuted}>
-              Amount
-            </AppText>
-            <View style={styles.amountRow}>
-              <AppText
-                style={[
-                  styles.sign,
-                  { color: kind === 'income' ? colors.income : colors.expense },
-                ]}>
-                {kind === 'income' ? '+' : '-'}
+          {/*
+            Amount. The direction is carried by colour and a named badge rather
+            than by a +/- glyph: a lone sign in front of a number is easy to
+            miss at a glance and says nothing about which way the money is
+            moving. The whole card is tinted, so what is being entered is
+            obvious from anywhere on the screen, and it recolours the instant
+            the Expense/Income switch is touched.
+          */}
+          <Card
+            style={[
+              styles.amountCard,
+              { backgroundColor: withAlpha(tone, 0.07), borderColor: withAlpha(tone, 0.32) },
+            ]}>
+            <View
+              style={[
+                styles.kindBadge,
+                { backgroundColor: withAlpha(tone, 0.16), borderColor: withAlpha(tone, 0.34) },
+              ]}>
+              <Ionicons
+                name={kind === 'income' ? 'arrow-down-circle' : 'arrow-up-circle'}
+                size={14}
+                color={tone}
+              />
+              <AppText variant="label" color={tone}>
+                {kind === 'income' ? 'Money in' : 'Money out'}
               </AppText>
-              <AppText style={styles.currency}>{profile.currency}</AppText>
+            </View>
+
+            <View style={styles.amountRow}>
+              <AppText style={[styles.currency, { color: tone }]}>{profile.currency}</AppText>
               <TextInput
                 value={amount}
                 onChangeText={(text) => setAmount(sanitizeAmountInput(text))}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.textMuted}
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: tone }]}
                 autoFocus
               />
             </View>
@@ -172,7 +204,18 @@ export default function AddTransactionScreen() {
             <AppText variant="label" color={colors.textMuted} style={styles.fieldLabel}>
               Category
             </AppText>
-            <View style={styles.categoryGrid}>
+            {/*
+              One row that scrolls sideways rather than a grid that grows
+              downwards. The grid cost four rows before a word was typed and
+              gained another with every category added, pushing the amount off
+              screen; this stays one row tall however long the list gets, and
+              still shows the categories themselves rather than hiding them
+              behind a tap.
+            */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryRow}>
               {available.map((category) => {
                 const selected = category.id === categoryId;
                 return (
@@ -182,27 +225,30 @@ export default function AddTransactionScreen() {
                     accessibilityState={{ selected }}
                     onPress={() => setCategoryId(category.id)}
                     style={({ pressed }) => [
-                      styles.categoryItem,
-                      selected && styles.categoryItemSelected,
-                      pressed && { opacity: 0.8 },
+                      styles.categoryChip,
+                      // Selected takes the category's own colour, so the choice
+                      // is legible at a glance in a row of otherwise grey pills.
+                      selected && {
+                        backgroundColor: withAlpha(category.color, 0.16),
+                        borderColor: withAlpha(category.color, 0.42),
+                      },
+                      pressed && !selected && { backgroundColor: colors.surfaceHigh },
                     ]}>
-                    <CategoryIcon
-                      icon={category.icon}
-                      color={category.color}
-                      size={38}
-                      solid={selected}
+                    <Ionicons
+                      name={category.icon}
+                      size={16}
+                      color={selected ? category.color : colors.textMuted}
                     />
                     <AppText
-                      variant="caption"
-                      color={selected ? colors.text : colors.textMuted}
-                      numberOfLines={1}
-                      center>
+                      variant="label"
+                      color={selected ? colors.text : colors.textSecondary}
+                      numberOfLines={1}>
                       {category.name}
                     </AppText>
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
 
           {/* Details */}
@@ -227,29 +273,13 @@ export default function AddTransactionScreen() {
               <AppText variant="label" color={colors.textMuted} style={styles.fieldLabel}>
                 When
               </AppText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.dayRow}>
-                {days.map((day, index) => {
-                  const selected = index === dayOffset;
-                  return (
-                    <Pressable
-                      key={day.toISOString()}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() => setDayOffset(index)}
-                      style={[styles.day, selected && styles.daySelected]}>
-                      <AppText
-                        variant="label"
-                        color={selected ? '#04140A' : colors.textSecondary}
-                        numberOfLines={1}>
-                        {formatDayHeading(day.toISOString())}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <DateField
+                value={date}
+                onChange={setDate}
+                accessibilityLabel={
+                  kind === 'income' ? 'Date this came in' : 'Date this was spent'
+                }
+              />
             </View>
 
             {accounts.length > 1 ? (
@@ -300,13 +330,13 @@ export default function AddTransactionScreen() {
           </View>
 
           {valid ? (
-            <Animated.View entering={FadeIn.duration(220)}>
+            <View>
               <AppText variant="caption" color={colors.textMuted} center>
                 {kind === 'income' ? 'Adding' : 'Deducting'}{' '}
                 {formatCurrency(parsedAmount, profile.currency)} {kind === 'income' ? 'to' : 'from'}{' '}
                 {accounts.find((account) => account.id === accountId)?.name ?? 'your account'}
               </AppText>
-            </Animated.View>
+            </View>
           ) : null}
 
           <Button
@@ -343,16 +373,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     gap: spacing.xl,
   },
-  close: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   amountCard: {
     alignItems: 'center',
     gap: spacing.sm,
@@ -362,14 +382,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  sign: {
-    fontFamily: font.bold,
-    fontSize: 30,
+  kindBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
   },
   currency: {
     fontFamily: font.bold,
     fontSize: 24,
-    color: colors.textSecondary,
   },
   amountInput: {
     fontFamily: font.extrabold,
@@ -382,23 +406,22 @@ const styles = StyleSheet.create({
   fieldLabel: {
     marginBottom: spacing.sm,
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  categoryRow: {
     gap: spacing.sm,
+    // Lets the last chip clear the edge, so a partly visible one at the right
+    // is the cue that the row keeps going.
+    paddingRight: spacing.xl,
   },
-  categoryItem: {
-    width: '31%',
+  categoryChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
+    gap: spacing.sm,
+    height: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  categoryItemSelected: {
-    backgroundColor: colors.card,
-    borderColor: colors.borderStrong,
+    borderColor: colors.border,
   },
   fields: {
     gap: spacing.lg,
@@ -418,24 +441,6 @@ const styles = StyleSheet.create({
   noteInput: {
     minHeight: 78,
     textAlignVertical: 'top',
-  },
-  dayRow: {
-    gap: spacing.sm,
-    paddingRight: spacing.xl,
-  },
-  day: {
-    height: 38,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  daySelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   accountRow: {
     flexDirection: 'row',

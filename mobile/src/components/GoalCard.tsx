@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/src/components/AppText';
 import { Card } from '@/src/components/Card';
-import { CategoryIcon } from '@/src/components/CategoryIcon';
+import { CategoryIcon, withAlpha } from '@/src/components/CategoryIcon';
 import { ProgressBar } from '@/src/components/ProgressBar';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { Goal } from '@/src/types';
@@ -16,10 +17,9 @@ export type GoalCardProps = {
   currency: string;
   onAddFunds?: () => void;
   onPress?: () => void;
-  delay?: number;
 };
 
-export function GoalCard({ goal, currency, onAddFunds, onPress, delay = 0 }: GoalCardProps) {
+export function GoalCard({ goal, currency, onAddFunds, onPress }: GoalCardProps) {
   const progress = goalProgress(goal);
   const remaining = Math.max(goal.target - goal.saved, 0);
   const days = daysUntil(goal.deadline);
@@ -29,7 +29,24 @@ export function GoalCard({ goal, currency, onAddFunds, onPress, delay = 0 }: Goa
     <Pressable onPress={onPress} accessibilityRole="button">
       <Card style={styles.card}>
         <View style={styles.header}>
-          <CategoryIcon icon={goal.icon} color={goal.color} size={42} />
+          {/*
+            Same 42pt tile either way, so a goal with a picture and one without
+            sit at identical heights in the list and the layout is unchanged.
+          */}
+          {goal.image ? (
+            <Image
+              source={{ uri: goal.image }}
+              style={[styles.image, { borderColor: withAlpha(goal.color, 0.35) }]}
+              contentFit="cover"
+              // The picture is decoration for a goal whose name is already read
+              // out beside it, so it is not announced twice.
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+              transition={160}
+            />
+          ) : (
+            <CategoryIcon icon={goal.icon} color={goal.color} size={42} />
+          )}
           <View style={styles.titles}>
             <AppText variant="h3" numberOfLines={1}>
               {goal.name}
@@ -47,7 +64,7 @@ export function GoalCard({ goal, currency, onAddFunds, onPress, delay = 0 }: Goa
           </AppText>
         </View>
 
-        <ProgressBar value={progress} color={goal.color} delay={delay} height={9} />
+        <ProgressBar value={progress} color={goal.color} height={9} />
 
         <View style={styles.footer}>
           <View>
@@ -85,6 +102,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  image: {
+    // Matches CategoryIcon at size 42 exactly, radius included, so swapping one
+    // for the other moves nothing.
+    width: 42,
+    height: 42,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    backgroundColor: colors.surface,
   },
   titles: {
     flex: 1,

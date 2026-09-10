@@ -7,7 +7,7 @@ type Variant = keyof typeof typeScale;
 export type AppTextProps = TextProps & {
   variant?: Variant;
   color?: string;
-  /** Renders digits at a fixed width so amounts do not jitter while animating. */
+  /** Renders digits at a fixed width so amounts do not jitter as they change. */
   tabular?: boolean;
   center?: boolean;
 };

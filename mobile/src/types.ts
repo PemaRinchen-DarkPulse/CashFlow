@@ -29,8 +29,6 @@ export type Transaction = {
 export type Account = {
   id: string;
   name: string;
-  /** Last four digits, shown on the account card. */
-  last4: string;
   balance: number;
   color: string;
   icon: IconName;
@@ -51,6 +49,15 @@ export type Goal = {
   /** ISO date string for the target date. */
   deadline: string;
   icon: IconName;
+  /**
+   * A picture of the thing being saved for, shown in place of `icon` when set.
+   * A `file://` URI inside the app's own document directory, not the one the
+   * picker hands back — see `pickGoalImage`.
+   *
+   * `icon` stays required and keeps working as the fallback, so goals made
+   * before this existed, and goals nobody picks a photo for, are unaffected.
+   */
+  image?: string;
   color: string;
 };
 

@@ -66,6 +66,14 @@ export async function request<T>(
 
   const { method = 'GET', body, token } = options;
 
+  /**
+   * A multipart body is passed through untouched. `fetch` writes its own
+   * Content-Type for FormData, including the boundary that separates the parts
+   * — setting one by hand omits that boundary and the server reads the whole
+   * body as a single malformed part.
+   */
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+
   // React Native's AbortSignal is the `abort-controller` polyfill, which has no
   // static `timeout()`. Calling it throws a TypeError from inside the try below,
   // which is indistinguishable there from a dead server — so every request would
@@ -84,10 +92,10 @@ export async function request<T>(
       method,
       headers: {
         accept: 'application/json',
-        ...(body ? { 'content-type': 'application/json' } : {}),
+        ...(body && !isForm ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: isForm ? (body as FormData) : body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
   } catch {

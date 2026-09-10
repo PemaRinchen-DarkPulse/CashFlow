@@ -176,7 +176,6 @@ export default function RegisterScreen() {
               source={require('@/assets/images/icon.png')}
               style={styles.logo}
               contentFit="cover"
-              transition={200}
             />
           </View>
           <AppText variant="h1">{title}</AppText>

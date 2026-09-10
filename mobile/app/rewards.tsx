@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -92,7 +91,7 @@ export default function RewardsScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <View>
           <View style={[styles.hero, shadow.card]}>
             <LinearGradient
               colors={['#15272F', '#0D1A20'] as const}
@@ -119,9 +118,9 @@ export default function RewardsScreen() {
               </AppText>
             </View>
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(60)} style={styles.streakRow}>
+        <View style={styles.streakRow}>
           <Card style={styles.streakCard}>
             <Ionicons name="flame" size={20} color={colors.warning} />
             <AppText tabular style={styles.streakValue}>
@@ -149,9 +148,9 @@ export default function RewardsScreen() {
               logged
             </AppText>
           </Card>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(120)}>
+        <View>
           <SectionHeader title="Active challenges" subtitle="Earn points by finishing these" />
           <Card style={styles.challengeCard}>
             {challenges.map((challenge, index) => (
@@ -172,15 +171,14 @@ export default function RewardsScreen() {
                 <ProgressBar
                   value={challenge.progress}
                   color={challenge.color}
-                  delay={index * 90}
                   height={6}
                 />
               </View>
             ))}
           </Card>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(180)}>
+        <View>
           <SectionHeader title="Badges" subtitle="Milestones along the way" />
           <View style={styles.badgeGrid}>
             {rewards.badges.map((badge) => (
@@ -202,7 +200,7 @@ export default function RewardsScreen() {
               </View>
             ))}
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
     </ScreenBackground>
   );

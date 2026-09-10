@@ -8,7 +8,17 @@
     "scheme": "cashflow",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#05090B",
+    "primaryColor": "#1DD75B",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#05090B"
+    },
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#05090B"
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -47,6 +57,14 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow CashFlow to use Face ID to sign you in."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CashFlow to use your photos so a savings goal can show the thing you are saving for.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],

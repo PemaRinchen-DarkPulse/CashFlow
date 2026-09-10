@@ -19,6 +19,8 @@ export type ConfirmDialogProps = {
   onConfirm: () => void;
   onCancel: () => void;
   icon?: IconName;
+  /** Set while a confirmed delete is still in flight, so it cannot be sent twice. */
+  loading?: boolean;
 };
 
 /**
@@ -36,8 +38,10 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   icon = 'trash',
+  loading = false,
 }: ConfirmDialogProps) {
   const handleConfirm = () => {
+    if (loading) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     onConfirm();
   };
@@ -73,9 +77,10 @@ export function ConfirmDialog({
             variant="danger"
             icon={icon}
             onPress={handleConfirm}
+            loading={loading}
             style={styles.confirm}
           />
-          <Button label={cancelLabel} variant="secondary" onPress={onCancel} />
+          <Button label={cancelLabel} variant="secondary" onPress={onCancel} disabled={loading} />
         </View>
       </View>
     </Modal>

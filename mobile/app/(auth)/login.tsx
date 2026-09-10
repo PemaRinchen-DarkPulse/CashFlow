@@ -91,7 +91,6 @@ export default function LoginScreen() {
               source={require('@/assets/images/icon.png')}
               style={styles.logo}
               contentFit="cover"
-              transition={200}
             />
           </View>
           <AppText variant="display" center>

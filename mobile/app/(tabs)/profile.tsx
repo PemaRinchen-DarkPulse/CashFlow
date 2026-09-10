@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -11,7 +11,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -20,6 +19,7 @@ import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { ConfirmDialog } from '@/src/components/ConfirmDialog';
+import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { SettingRow } from '@/src/components/SettingRow';
@@ -27,17 +27,29 @@ import { useToast } from '@/src/components/Toast';
 import { useAuth } from '@/src/store/AuthContext';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
+import type { Account } from '@/src/types';
 import { formatDate } from '@/src/utils/date';
 import { formatCurrency, maskAmount } from '@/src/utils/format';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, totalBalance, streak, updateSetting, updateProfile, resetData, unreadCount, addAccount } =
-    useFinance();
+  // Set by the screens that send someone here because they have no account yet.
+  const params = useLocalSearchParams<{ addAccount?: string }>();
+  const {
+    state,
+    totalBalance,
+    streak,
+    updateSetting,
+    updateProfile,
+    resetData,
+    unreadCount,
+    addAccount,
+    deleteAccount,
+  } = useFinance();
   const { biometrics, biometricEnabled, enableBiometrics, disableBiometrics, signOut } = useAuth();
   const { showToast } = useToast();
-  const { profile, accounts, transactions, settings, rewards, goals } = state;
+  const { profile, accounts, transactions, settings, rewards } = state;
   const currency = profile.currency;
   const hidden = settings.hideBalance;
 
@@ -46,14 +58,30 @@ export default function ProfileScreen() {
   const [biometricPassword, setBiometricPassword] = useState('');
   const [enabling, setEnabling] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
   const [draftName, setDraftName] = useState(profile.name);
   const [draftEmail, setDraftEmail] = useState(profile.email);
   const [addingAccount, setAddingAccount] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountBalance, setNewAccountBalance] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
+  const [removingAccount, setRemovingAccount] = useState(false);
 
-  const savedTotal = useMemo(() => goals.reduce((sum, goal) => sum + goal.saved, 0), [goals]);
+  // Arriving from "Add an account" elsewhere opens the sheet straight away. The
+  // param is cleared so leaving and coming back does not reopen it.
+  useEffect(() => {
+    if (params.addAccount !== '1') return;
+    setAddingAccount(true);
+    router.setParams({ addAccount: undefined });
+  }, [params.addAccount, router]);
+
+  const accountTransactionCount = useMemo(
+    () =>
+      deletingAccount
+        ? transactions.filter((item) => item.accountId === deletingAccount.id).length
+        : 0,
+    [deletingAccount, transactions]
+  );
 
   const openEditor = () => {
     setDraftName(profile.name);
@@ -68,17 +96,35 @@ export default function ProfileScreen() {
     setEditing(false);
   };
 
-  const handleSaveAccount = () => {
+  const handleSaveAccount = async () => {
     const name = newAccountName.trim();
-    if (!name) return;
-    addAccount({
-      name,
-      balance: Number(newAccountBalance) || 0,
-    });
-    showToast('Account added successfully', 'success');
+    if (!name || savingAccount) return;
+
+    setSavingAccount(true);
+    const result = await addAccount({ name, balance: Number(newAccountBalance) || 0 });
+    setSavingAccount(false);
+
+    // The sheet stays open on a failure so the details typed are not lost.
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+
+    showToast('Account added', 'success');
     setNewAccountName('');
     setNewAccountBalance('');
     setAddingAccount(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletingAccount || removingAccount) return;
+
+    setRemovingAccount(true);
+    const result = await deleteAccount(deletingAccount.id);
+    setRemovingAccount(false);
+    setDeletingAccount(null);
+
+    showToast(result.ok ? 'Account removed' : result.message, result.ok ? 'success' : 'error');
   };
 
   const handleReset = () => {
@@ -126,7 +172,7 @@ export default function ProfileScreen() {
           styles.content,
           { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
         ]}>
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <View>
           <Card style={styles.identityCard}>
             <View style={styles.identityRow}>
               <Avatar name={profile.name} size={64} />
@@ -160,9 +206,9 @@ export default function ProfileScreen() {
               </AppText>
             </View>
           </Card>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(60)} style={styles.statRow}>
+        <View style={styles.statRow}>
           <View style={styles.statBlock}>
             <AppText tabular style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
               {hidden ? maskAmount(balanceLabel) : balanceLabel}
@@ -189,53 +235,51 @@ export default function ProfileScreen() {
               Streak
             </AppText>
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(120)}>
+        <View>
           <SectionHeader
             title="Accounts"
             subtitle="Where your money sits"
             actionLabel="Add account"
             onAction={() => setAddingAccount(true)}
           />
-          <Card style={styles.listCard}>
-            {accounts.map((account, index) => {
-              const label = formatCurrency(account.balance, currency);
-              return (
-                <View key={account.id}>
-                  {index > 0 ? <View style={styles.divider} /> : null}
-                  <View style={styles.accountRow}>
-                    <CategoryIcon icon={account.icon} color={account.color} size={40} />
-                    <View style={styles.accountText}>
-                      <AppText variant="h3">{account.name}</AppText>
-                      <AppText variant="caption" color={colors.textMuted}>
-                        •••• {account.last4}
-                      </AppText>
+          {accounts.length === 0 ? (
+            <NoAccountsNotice onAddAccount={() => setAddingAccount(true)} />
+          ) : (
+            <Card style={styles.listCard}>
+              {accounts.map((account, index) => {
+                const label = formatCurrency(account.balance, currency);
+                return (
+                  <View key={account.id}>
+                    {index > 0 ? <View style={styles.divider} /> : null}
+                    <View style={styles.accountRow}>
+                      <CategoryIcon icon={account.icon} color={account.color} size={40} />
+                      {/* Name then balance. Nothing that looks like a card or
+                          account number: the app never asks for one. */}
+                      <View style={styles.accountText}>
+                        <AppText variant="h3">{account.name}</AppText>
+                        <AppText tabular style={styles.accountBalance}>
+                          {hidden ? maskAmount(label) : label}
+                        </AppText>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${account.name}`}
+                        onPress={() => setDeletingAccount(account)}
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.removeButton, pressed && { opacity: 0.6 }]}>
+                        <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
+                      </Pressable>
                     </View>
-                    <AppText tabular style={styles.accountBalance}>
-                      {hidden ? maskAmount(label) : label}
-                    </AppText>
                   </View>
-                </View>
-              );
-            })}
-            <View style={styles.divider} />
-            <View style={styles.accountRow}>
-              <CategoryIcon icon="flag" color={colors.primary} size={40} />
-              <View style={styles.accountText}>
-                <AppText variant="h3">Set aside in goals</AppText>
-                <AppText variant="caption" color={colors.textMuted}>
-                  Across {goals.length} goal{goals.length === 1 ? '' : 's'}
-                </AppText>
-              </View>
-              <AppText tabular style={[styles.accountBalance, { color: colors.primary }]}>
-                {formatCurrency(savedTotal, currency, 0)}
-              </AppText>
-            </View>
-          </Card>
-        </Animated.View>
+                );
+              })}
+            </Card>
+          )}
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(180)}>
+        <View>
           <SectionHeader title="Preferences" />
           <Card style={styles.listCard}>
             <SettingRow
@@ -286,9 +330,9 @@ export default function ProfileScreen() {
               onValueChange={(value) => updateSetting('weeklyDigest', value)}
             />
           </Card>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(240)}>
+        <View>
           <SectionHeader title="More" />
           <Card style={styles.listCard}>
             <SettingRow
@@ -326,10 +370,13 @@ export default function ProfileScreen() {
               label="Sign out"
               description="You will need your password or biometrics to get back in"
               destructive
-              onPress={() => setSigningOut(true)}
+              // Straight out, with nothing to confirm. Signing out destroys no
+              // data and is undone by signing back in, so a prompt was only
+              // ever a step between the user and what they asked for.
+              onPress={signOut}
             />
           </Card>
-        </Animated.View>
+        </View>
 
         <View style={styles.footer}>
           <View style={styles.footerBadge}>
@@ -357,24 +404,26 @@ export default function ProfileScreen() {
       />
 
       <ConfirmDialog
-        visible={signingOut}
-        icon="log-out-outline"
-        title="Sign out of CashFlow?"
-        message="You will land back on the sign-in screen."
-        detail="Nothing is deleted — your data is waiting when you return."
-        confirmLabel="Sign out"
-        cancelLabel="Stay signed in"
-        onConfirm={() => {
-          setSigningOut(false);
-          signOut();
-        }}
-        onCancel={() => setSigningOut(false)}
+        visible={!!deletingAccount}
+        icon="trash"
+        title={`Remove ${deletingAccount?.name ?? 'this account'}?`}
+        message={`Its ${formatCurrency(deletingAccount?.balance ?? 0, currency)} balance comes out of your net balance.`}
+        detail={
+          accountTransactionCount > 0
+            ? `${accountTransactionCount} transaction${accountTransactionCount === 1 ? '' : 's'} logged against it stay in your history.`
+            : undefined
+        }
+        confirmLabel="Remove account"
+        cancelLabel="Keep it"
+        loading={removingAccount}
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setDeletingAccount(null)}
       />
 
       <Modal
         visible={editing}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setEditing(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -421,7 +470,7 @@ export default function ProfileScreen() {
       <Modal
         visible={confirming}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setConfirming(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -465,7 +514,7 @@ export default function ProfileScreen() {
       <Modal
         visible={addingAccount}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setAddingAccount(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -510,6 +559,7 @@ export default function ProfileScreen() {
               label="Add account"
               icon="add-circle"
               onPress={handleSaveAccount}
+              loading={savingAccount}
               disabled={!newAccountName.trim()}
             />
           </View>
@@ -602,9 +652,19 @@ const styles = StyleSheet.create({
   },
   accountBalance: {
     fontFamily: font.semibold,
-    fontSize: 15,
-    color: colors.text,
-    letterSpacing: -0.3,
+    fontSize: 14,
+    color: colors.textSecondary,
+    letterSpacing: -0.2,
+  },
+  removeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footer: {
     alignItems: 'center',

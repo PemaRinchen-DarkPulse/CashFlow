@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -66,7 +65,9 @@ export default function TransactionDetailScreen() {
     { label: 'Category', value: category.name, icon: 'pricetag-outline' },
     { label: 'Date', value: formatDate(transaction.date), icon: 'calendar-outline' },
     { label: 'Time', value: formatTime(transaction.date), icon: 'time-outline' },
-    { label: 'Account', value: account ? `${account.name} •••• ${account.last4}` : '—', icon: 'card-outline' },
+    // The account can be gone while the transaction that used it remains, and
+    // saying so is more use than a dash the reader has to interpret.
+    { label: 'Account', value: account?.name ?? 'Account removed', icon: 'card-outline' },
     { label: 'Type', value: isIncome ? 'Income' : 'Expense', icon: 'swap-vertical-outline' },
   ];
 
@@ -79,7 +80,7 @@ export default function TransactionDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.hero}>
+        <View style={styles.hero}>
           <CategoryIcon icon={category.icon} color={category.color} size={72} />
           <AppText variant="h2" center numberOfLines={2} style={styles.title}>
             {transaction.title}
@@ -97,9 +98,9 @@ export default function TransactionDetailScreen() {
               Completed
             </AppText>
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={FadeInDown.duration(420).delay(80)}>
+        <View>
           <Card style={styles.detailCard}>
             {rows.map((row, index) => (
               <View key={row.label}>
@@ -118,10 +119,10 @@ export default function TransactionDetailScreen() {
               </View>
             ))}
           </Card>
-        </Animated.View>
+        </View>
 
         {transaction.note ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(140)}>
+          <View>
             <Card>
               <AppText variant="label" color={colors.textMuted} style={styles.noteLabel}>
                 Note
@@ -130,7 +131,7 @@ export default function TransactionDetailScreen() {
                 {transaction.note}
               </AppText>
             </Card>
-          </Animated.View>
+          </View>
         ) : null}
 
         <View style={styles.actions}>

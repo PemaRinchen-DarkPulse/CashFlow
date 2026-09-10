@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -151,12 +150,12 @@ export default function AnalyticsScreen() {
           styles.content,
           { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
         ]}>
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <View>
           <AppText variant="h1">Analytics</AppText>
           <AppText variant="caption" color={colors.textMuted}>
             {data.label}
           </AppText>
-        </Animated.View>
+        </View>
 
         <View style={styles.periodRow}>
           {(['week', 'month', 'year'] as Period[]).map((value) => (
@@ -170,7 +169,7 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* Spend vs earn */}
-        <Animated.View entering={FadeInDown.duration(420).delay(60)}>
+        <View>
           <Card>
             <View style={styles.totalsBlock}>
                 <AppText variant="caption" color={colors.textMuted}>
@@ -206,10 +205,10 @@ export default function AnalyticsScreen() {
                 </View>
             </View>
           </Card>
-        </Animated.View>
+        </View>
 
         {/* Health metrics */}
-        <Animated.View entering={FadeInDown.duration(420).delay(120)} style={styles.metricRow}>
+        <View style={styles.metricRow}>
           <Card style={styles.metricCard}>
             <AppText variant="caption" color={colors.textMuted}>
               Savings rate
@@ -232,10 +231,10 @@ export default function AnalyticsScreen() {
               color={colors.warning}
             />
           </Card>
-        </Animated.View>
+        </View>
 
         {/* Category breakdown */}
-        <Animated.View entering={FadeInDown.duration(420).delay(180)}>
+        <View>
           <SectionHeader title="Spending by category" subtitle={data.label} />
           <Card>
             {breakdown.length === 0 ? (
@@ -289,7 +288,6 @@ export default function AnalyticsScreen() {
                           value={item.share}
                           color={item.category.color}
                           height={6}
-                          delay={index * 70}
                         />
                         <AppText variant="caption" color={colors.textMuted}>
                           {item.share.toFixed(1)}% · {item.count} transaction
@@ -302,10 +300,10 @@ export default function AnalyticsScreen() {
               </>
             )}
           </Card>
-        </Animated.View>
+        </View>
 
         {/* Category Budgets */}
-        <Animated.View entering={FadeInDown.duration(420).delay(210)}>
+        <View>
           <SectionHeader
             title="Category budgets"
             subtitle="Tap a budget to adjust it"
@@ -330,7 +328,6 @@ export default function AnalyticsScreen() {
                   <BudgetRow
                     status={status}
                     currency={currency}
-                    delay={index * 80}
                     onPress={() =>
                       router.push({
                         pathname: '/edit-budget',
@@ -342,11 +339,11 @@ export default function AnalyticsScreen() {
               ))}
             </Card>
           )}
-        </Animated.View>
+        </View>
 
         {/* Top merchants */}
         {topMerchants.length > 0 ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(240)}>
+          <View>
             <SectionHeader title="Biggest payees" subtitle="Where it adds up fastest" />
             <Card style={styles.merchantCard}>
               {topMerchants.map((merchant, index) => (
@@ -368,12 +365,12 @@ export default function AnalyticsScreen() {
                 </View>
               ))}
             </Card>
-          </Animated.View>
+          </View>
         ) : null}
 
         {/* Insights */}
         {insights.length > 0 ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(300)}>
+          <View>
             <SectionHeader title="Insights" subtitle="What changed this month" />
             <View style={styles.insightList}>
               {insights.map((insight) => (
@@ -398,7 +395,7 @@ export default function AnalyticsScreen() {
                 </Card>
               ))}
             </View>
-          </Animated.View>
+          </View>
         ) : null}
 
         <Pressable

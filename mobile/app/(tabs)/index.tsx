@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -11,7 +10,9 @@ import { BalanceCard } from '@/src/components/BalanceCard';
 import { BudgetRow } from '@/src/components/BudgetRow';
 import { Card } from '@/src/components/Card';
 import { DonutChart } from '@/src/components/charts/DonutChart';
+import { EmptyState } from '@/src/components/EmptyState';
 import { GoalCard } from '@/src/components/GoalCard';
+import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { QuickAction } from '@/src/components/QuickAction';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
@@ -33,7 +34,19 @@ import { formatCurrency, maskAmount } from '@/src/utils/format';
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, totalBalance, unreadCount, streak, debts, netWorth, updateSetting } = useFinance();
+  const {
+    state,
+    totalBalance,
+    unreadCount,
+    streak,
+    debts,
+    netWorth,
+    updateSetting,
+    monthlyIncome,
+    monthlyIncomeLoading,
+    refreshMonthlyIncome,
+    accountsLoading,
+  } = useFinance();
   const { profile, transactions, categories, budgets, goals, settings, rewards } = state;
   const currency = profile.currency;
   const hidden = settings.hideBalance;
@@ -56,7 +69,38 @@ export default function HomeScreen() {
   );
 
   const spentLabel = formatCurrency(summary.totals.expense, currency);
-  const earnedLabel = formatCurrency(summary.totals.income, currency);
+
+  // Earned comes from the database, not from the ledger on this device, so the
+  // figure matches on every phone signed into the account. Until the server has
+  // answered there is no total to show — a dash, rather than a number that
+  // might be replaced a moment later.
+  const earnedKnown = monthlyIncome !== null;
+  const earnedLabel = earnedKnown ? formatCurrency(monthlyIncome, currency) : '—';
+
+  /**
+   * A card with nothing in it should say what to do about that. Three cases,
+   * and only the last is a plain figure: the total is still on its way, the
+   * server could not be reached and the read can be tried again, or there is
+   * genuinely no income yet and the next step is to log some.
+   */
+  const earnedAction = !earnedKnown
+    ? monthlyIncomeLoading
+      ? null // The skeleton is showing; there is nothing to do but wait.
+      : { label: 'Tap to retry', onPress: refreshMonthlyIncome }
+    : monthlyIncome === 0
+      ? {
+          label: 'Add your first income',
+          onPress: () => router.push('/add-transaction?kind=income'),
+        }
+      : null;
+
+  const spentAction =
+    summary.totals.expense === 0
+      ? {
+          label: 'Log your first expense',
+          onPress: () => router.push('/add-transaction?kind=expense'),
+        }
+      : null;
 
   return (
     <ScreenBackground>
@@ -67,7 +111,7 @@ export default function HomeScreen() {
           { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
         ]}>
         {/* Header */}
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+        <View style={styles.header}>
           <Pressable
             style={styles.identity}
             onPress={() => router.push('/profile')}
@@ -90,14 +134,15 @@ export default function HomeScreen() {
             <Ionicons name="notifications-outline" size={20} color={colors.text} />
             {unreadCount > 0 ? <View style={styles.bellDot} /> : null}
           </Pressable>
-        </Animated.View>
+        </View>
 
         {/* Balance + quick actions */}
-        <Animated.View entering={FadeInDown.duration(420).delay(60)}>
+        <View>
           <BalanceCard
             balance={totalBalance}
             currency={currency}
             hidden={hidden}
+            loading={accountsLoading}
             onToggleHidden={() => updateSetting('hideBalance', !hidden)}>
             <QuickAction
               label="Add"
@@ -117,26 +162,37 @@ export default function HomeScreen() {
             <QuickAction label="Borrow" icon="people" onPress={() => router.push('/add-debt')} />
             <QuickAction label="Budgets" icon="pie-chart" onPress={() => router.push('/analytics')} />
           </BalanceCard>
-        </Animated.View>
+        </View>
+
+        {/* A zero balance with no accounts behind it needs saying, not showing. */}
+        <NoAccountsNotice
+          title="Start with an account"
+          body="Your balance is empty because there is nowhere to hold it yet. Add the bank account, wallet or cash you use."
+        />
 
         {/* This month at a glance */}
-        <Animated.View entering={FadeInDown.duration(420).delay(120)} style={styles.statRow}>
+        <View style={styles.statRow}>
           <StatCard
             label="Earned this month"
-            value={hidden ? maskAmount(earnedLabel) : earnedLabel}
+            value={hidden && earnedKnown ? maskAmount(earnedLabel) : earnedLabel}
             valueColor={colors.income}
-            caption={`${summary.totals.income > 0 ? 'Income' : 'No income'} recorded`}
+            caption="Income recorded"
+            loading={monthlyIncomeLoading && !earnedKnown}
+            actionLabel={earnedAction?.label}
+            onAction={earnedAction?.onPress}
           />
           <StatCard
             label="Spent this month"
             value={hidden ? maskAmount(spentLabel) : spentLabel}
             valueColor={colors.expense}
             caption={`Net ${formatCurrency(summary.totals.net, currency, 0)}`}
+            actionLabel={spentAction?.label}
+            onAction={spentAction?.onPress}
           />
-        </Animated.View>
+        </View>
 
         {/* Where the money went */}
-        <Animated.View entering={FadeInDown.duration(420).delay(180)} style={styles.section}>
+        <View style={styles.section}>
           <SectionHeader
             title="Where your money went"
             subtitle="This month by category"
@@ -145,9 +201,14 @@ export default function HomeScreen() {
           />
           <Card>
             {summary.breakdown.length === 0 ? (
-              <AppText variant="body" color={colors.textMuted} center>
-                No spending recorded this month yet.
-              </AppText>
+              <EmptyState
+                compact
+                icon="pie-chart-outline"
+                title="No spending yet this month"
+                body="Log an expense and this chart will show exactly where the money goes."
+                actionLabel="Add an expense"
+                onAction={() => router.push('/add-transaction?kind=expense')}
+              />
             ) : (
               <View style={styles.breakdown}>
                 <DonutChart
@@ -181,11 +242,11 @@ export default function HomeScreen() {
               </View>
             )}
           </Card>
-        </Animated.View>
+        </View>
 
         {/* Debts */}
         {debts.openCount > 0 ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(210)} style={styles.section}>
+          <View style={styles.section}>
             <SectionHeader
               title="Friends & IOUs"
               subtitle="Kept out of income and spending"
@@ -227,12 +288,12 @@ export default function HomeScreen() {
                 .
               </AppText>
             </Pressable>
-          </Animated.View>
+          </View>
         ) : null}
 
         {/* Budgets */}
         {summary.budgets.length > 0 ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(240)} style={styles.section}>
+          <View style={styles.section}>
             <SectionHeader
               title="Budgets"
               subtitle="Monthly limits"
@@ -245,7 +306,6 @@ export default function HomeScreen() {
                   key={status.budget.id}
                   status={status}
                   currency={currency}
-                  delay={index * 90}
                   onPress={() =>
                     router.push({
                       pathname: '/edit-budget',
@@ -255,11 +315,11 @@ export default function HomeScreen() {
                 />
               ))}
             </Card>
-          </Animated.View>
+          </View>
         ) : null}
 
         {/* Recent transactions */}
-        <Animated.View entering={FadeInDown.duration(420).delay(300)} style={styles.section}>
+        <View style={styles.section}>
           <SectionHeader
             title="Recent Transactions"
             actionLabel="See All"
@@ -267,9 +327,14 @@ export default function HomeScreen() {
           />
           <Card style={styles.tightCard}>
             {recent.length === 0 ? (
-              <AppText variant="body" color={colors.textMuted} center>
-                Nothing logged yet — add your first transaction.
-              </AppText>
+              <EmptyState
+                compact
+                icon="receipt-outline"
+                title="Nothing logged yet"
+                body="Record what you earn and spend, and it will all show up here."
+                actionLabel="Add your first transaction"
+                onAction={() => router.push('/add-transaction')}
+              />
             ) : (
               recent.map((transaction, index) => (
                 <View key={transaction.id}>
@@ -290,11 +355,11 @@ export default function HomeScreen() {
               ))
             )}
           </Card>
-        </Animated.View>
+        </View>
 
         {/* Savings spotlight */}
         {spotlightGoal ? (
-          <Animated.View entering={FadeInDown.duration(420).delay(360)} style={styles.section}>
+          <View style={styles.section}>
             <SectionHeader
               title="Savings Goal"
               actionLabel="All goals"
@@ -305,11 +370,11 @@ export default function HomeScreen() {
               currency={currency}
               onPress={() => router.push({ pathname: '/goals', params: { tab: 'goals' } })}
             />
-          </Animated.View>
+          </View>
         ) : null}
 
         {/* Rewards */}
-        <Animated.View entering={FadeInDown.duration(420).delay(420)} style={styles.section}>
+        <View style={styles.section}>
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push('/rewards')}
@@ -327,7 +392,7 @@ export default function HomeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </Pressable>
-        </Animated.View>
+        </View>
       </ScrollView>
     </ScreenBackground>
   );

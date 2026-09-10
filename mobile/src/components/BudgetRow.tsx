@@ -11,7 +11,6 @@ export type BudgetRowProps = {
   status: BudgetStatus;
   currency: string;
   onPress?: () => void;
-  delay?: number;
 };
 
 const TONE = {
@@ -20,7 +19,7 @@ const TONE = {
   over: colors.expense,
 } as const;
 
-export function BudgetRow({ status, currency, onPress, delay = 0 }: BudgetRowProps) {
+export function BudgetRow({ status, currency, onPress }: BudgetRowProps) {
   const tone = TONE[status.state];
   const over = status.remaining < 0;
 
@@ -53,7 +52,7 @@ export function BudgetRow({ status, currency, onPress, delay = 0 }: BudgetRowPro
         </View>
       </View>
 
-      <ProgressBar value={status.progress} color={tone} delay={delay} />
+      <ProgressBar value={status.progress} color={tone} />
     </Pressable>
   );
 }

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/src/components/AppText';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
+import { DateField } from '@/src/components/DateField';
+import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { Segmented } from '@/src/components/Segmented';
@@ -23,10 +25,19 @@ import { SuccessOverlay } from '@/src/components/SuccessOverlay';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { Debt } from '@/src/types';
-import { addDays, formatDayHeading } from '@/src/utils/date';
+import { isSameDay } from '@/src/utils/date';
 import { formatCurrency, sanitizeAmountInput } from '@/src/utils/format';
 
 type Direction = Debt['direction'];
+
+/** Today keeps the current clock; a picked day lands at noon. */
+function stampTime(day: Date): Date {
+  const now = new Date();
+  if (isSameDay(day, now)) return now;
+  const date = new Date(day);
+  date.setHours(12, 0, 0, 0);
+  return date;
+}
 
 export default function AddDebtScreen() {
   const router = useRouter();
@@ -42,11 +53,16 @@ export default function AddDebtScreen() {
   const [person, setPerson] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [dayOffset, setDayOffset] = useState(0);
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? 'acc-everyday');
+  const [date, setDate] = useState(() => new Date());
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [saved, setSaved] = useState<{ person: string; amount: number } | null>(null);
 
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), -i)), []);
+  // The list is read back from the server, so it can arrive after this screen is
+  // already open — and an account can be removed from the profile while it is.
+  useEffect(() => {
+    if (accounts.some((account) => account.id === accountId)) return;
+    setAccountId(accounts[0]?.id ?? '');
+  }, [accounts, accountId]);
 
   /** People already on record, so repeat lenders are one tap away. */
   const knownPeople = useMemo(
@@ -59,7 +75,10 @@ export default function AddDebtScreen() {
   const amountValid = Number.isFinite(parsed) && parsed > 0;
   // You cannot lend out more cash than you actually hold.
   const withinBalance = borrowed || parsed <= totalBalance;
-  const valid = person.trim().length > 0 && amountValid && withinBalance;
+  // Borrowed cash has to land somewhere and lent cash has to come from
+  // somewhere, so both need an account to move it through.
+  const valid =
+    person.trim().length > 0 && amountValid && withinBalance && accounts.length > 0;
 
   const close = () => {
     if (router.canGoBack()) router.back();
@@ -68,14 +87,11 @@ export default function AddDebtScreen() {
 
   const save = () => {
     if (!valid) return;
-    const date = addDays(new Date(), -dayOffset);
-    if (dayOffset > 0) date.setHours(12, 0, 0, 0);
-
     addDebt({
       person,
       direction,
       principal: parsed,
-      date: date.toISOString(),
+      date: stampTime(date).toISOString(),
       note,
       accountId,
     });
@@ -101,6 +117,11 @@ export default function AddDebtScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
+          <NoAccountsNotice
+            title="Add an account first"
+            body="Borrowed money has to land in an account, and lent money has to come out of one. You do not have an account yet."
+          />
+
           <Segmented
             value={direction}
             onChange={setDirection}
@@ -169,26 +190,11 @@ export default function AddDebtScreen() {
             <AppText variant="label" color={colors.textMuted} style={styles.label}>
               When
             </AppText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dayRow}>
-              {days.map((day, index) => {
-                const selected = index === dayOffset;
-                return (
-                  <Pressable
-                    key={day.toISOString()}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => setDayOffset(index)}
-                    style={[styles.day, selected && styles.daySelected]}>
-                    <AppText variant="label" color={selected ? '#04140A' : colors.textSecondary}>
-                      {formatDayHeading(day.toISOString())}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <DateField
+              value={date}
+              onChange={setDate}
+              accessibilityLabel="Date the money moved"
+            />
           </View>
 
           {accounts.length > 1 ? (
@@ -331,24 +337,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  dayRow: {
-    gap: spacing.sm,
-    paddingRight: spacing.xl,
-  },
-  day: {
-    height: 38,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  daySelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   accountRow: {
     flexDirection: 'row',

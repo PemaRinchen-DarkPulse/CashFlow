@@ -12,7 +12,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/src/components/AppText';
@@ -21,6 +20,7 @@ import { Card } from '@/src/components/Card';
 import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { DebtCard } from '@/src/components/DebtCard';
 import { EmptyState } from '@/src/components/EmptyState';
+import { SkeletonRow } from '@/src/components/Skeleton';
 import { GoalCard } from '@/src/components/GoalCard';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
@@ -39,9 +39,20 @@ export default function PlanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tab?: string }>();
-  const { state, contributeToGoal, repayDebt, deleteDebt, debts: debtTotals, netWorth, totalBalance } =
+  const {
+    state,
+    contributeToGoal,
+    repayDebt,
+    deleteDebt,
+    debts: debtTotals,
+    netWorth,
+    totalBalance,
+    goalsLoading,
+    goalsError,
+    refreshGoals,
+  } =
     useFinance();
-  const { goals, debts, profile, rewards } = state;
+  const { goals, debts, profile, rewards, accounts } = state;
   const currency = profile.currency;
 
   const [tab, setTab] = useState<Tab>(
@@ -130,12 +141,12 @@ export default function PlanScreen() {
           styles.content,
           { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
         ]}>
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <View>
           <AppText variant="h1">Plan</AppText>
           <AppText variant="caption" color={colors.textMuted}>
             Savings goals and debts
           </AppText>
-        </Animated.View>
+        </View>
 
         <Segmented
           value={tab}
@@ -148,7 +159,7 @@ export default function PlanScreen() {
 
         {tab === 'debts' ? (
           <>
-            <Animated.View entering={FadeInDown.duration(420).delay(60)}>
+            <View>
               <Card style={styles.debtSummary}>
                 <View style={styles.debtSplit}>
                   <View style={styles.debtBlock}>
@@ -182,9 +193,9 @@ export default function PlanScreen() {
                   </AppText>
                 </View>
               </Card>
-            </Animated.View>
+            </View>
 
-            <Animated.View entering={FadeInDown.duration(420).delay(120)}>
+            <View>
               <SectionHeader
                 title="Friends & IOUs"
                 subtitle="Borrowing is tracked apart from spending"
@@ -208,18 +219,17 @@ export default function PlanScreen() {
                       key={debt.id}
                       debt={debt}
                       currency={currency}
-                      delay={index * 80}
                       onRepay={() => setRepaying(debt)}
                       onDelete={() => setDeletingDebt(debt)}
                     />
                   ))}
                 </View>
               )}
-            </Animated.View>
+            </View>
           </>
         ) : (
           <>
-            <Animated.View entering={FadeInDown.duration(420).delay(60)}>
+            <View>
               <Card>
                 <AppText variant="caption" color={colors.textMuted}>
                   Total saved towards goals
@@ -232,16 +242,37 @@ export default function PlanScreen() {
                   across {goals.length} goal{goals.length === 1 ? '' : 's'}
                 </AppText>
               </Card>
-            </Animated.View>
+            </View>
 
-            <Animated.View entering={FadeInDown.duration(420).delay(120)}>
+            <View>
               <SectionHeader
                 title="Savings goals"
                 subtitle="Money set aside on purpose"
                 actionLabel="New goal"
                 onAction={() => router.push('/add-goal')}
               />
-              {goals.length === 0 ? (
+              {/*
+                Goals are held in the database, so an empty list is one of three
+                different things and saying the wrong one is worse than saying
+                nothing: still on its way, unreachable — in which case the user
+                may well have goals — or genuinely none yet.
+              */}
+              {goalsLoading && goals.length === 0 ? (
+                <Card>
+                  <SkeletonRow lead={42} />
+                  <SkeletonRow lead={42} />
+                </Card>
+              ) : goalsError && goals.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon="cloud-offline-outline"
+                    title="Can't load your goals"
+                    body={`${goalsError}. Your goals are safe — this device just cannot reach them right now.`}
+                    actionLabel="Try again"
+                    onAction={refreshGoals}
+                  />
+                </Card>
+              ) : goals.length === 0 ? (
                 <Card>
                   <EmptyState
                     icon="flag-outline"
@@ -260,17 +291,16 @@ export default function PlanScreen() {
                         key={goal.id}
                         goal={goal}
                         currency={currency}
-                        delay={index * 90}
                         onAddFunds={() => setContributing(goal)}
                       />
                     ))}
                 </View>
               )}
-            </Animated.View>
+            </View>
           </>
         )}
 
-        <Animated.View entering={FadeInDown.duration(420).delay(180)}>
+        <View>
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push('/rewards')}
@@ -287,7 +317,7 @@ export default function PlanScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </Pressable>
-        </Animated.View>
+        </View>
       </ScrollView>
 
       <ConfirmDialog
@@ -312,7 +342,7 @@ export default function PlanScreen() {
       />
 
       {/* Repayment sheet */}
-      <Modal visible={!!repaying} transparent animationType="slide" onRequestClose={closeRepayment}>
+      <Modal visible={!!repaying} transparent animationType="none" onRequestClose={closeRepayment}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetBackdrop}>
@@ -384,7 +414,7 @@ export default function PlanScreen() {
       <Modal
         visible={!!contributing}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={closeContribution}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -394,7 +424,9 @@ export default function PlanScreen() {
             <View style={styles.grabber} />
             <AppText variant="h2">Add to {contributing?.name}</AppText>
             <AppText variant="caption" color={colors.textMuted}>
-              Moves money from Everyday into Savings. Available: {formatCurrency(totalBalance, currency)}
+              {accounts.length === 0
+                ? 'Add an account in your profile first — a contribution moves money out of one.'
+                : `Moves money from ${accounts[0].name} into Savings. Available: ${formatCurrency(totalBalance, currency)}`}
             </AppText>
 
             <View style={styles.amountInputRow}>
