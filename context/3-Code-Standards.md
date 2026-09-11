@@ -97,7 +97,7 @@ The codebase comments **why**, not what — trade-offs, rejected alternatives an
 
 ## API naming
 
-- Plural resource paths: `/api/accounts`, `/api/goals`, `/api/incomes`.
+- Plural resource paths: `/api/accounts`, `/api/goals`, `/api/incomes`, `/api/expenses`.
 - REST verbs: `GET` list / `GET /:id` / `POST` create / `PATCH /:id` partial update / `DELETE /:id`.
 - Responses are wrapped in a named key — `{ goal }`, `{ goals }`, `{ account }` — never a bare array or object.
 - `DELETE` answers `204` with no body.

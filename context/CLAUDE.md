@@ -23,12 +23,13 @@ No root package.json. The two packages are installed and run independently.
 
 ## Rules that matter
 
-1. **The server is the source of truth for accounts, goals and income.** They are fetched on launch; an empty list from the server *is* the list. Never substitute local data for a failed fetch — screens distinguish loading / error / empty.
-2. **Transactions, budgets, debts, notifications, rewards and settings are device-local only** (AsyncStorage, key `cashflow:state:v4`). They are seeded with demo data on first run.
+1. **The server is the source of truth for accounts, goals, debts, budgets, income, expenses, preferences and profile photos.** They are fetched on launch; an empty list from the server *is* the list. Never substitute local data for a failed fetch — screens distinguish loading / error / empty.
+   - **Nothing renders half-loaded.** A section shows a skeleton, an error, an empty state, or the finished thing. Totals summed from a list are gated with that list, and goal pictures are prefetched before the goals reach the reducer, so a card never appears with a hole where its photo goes.
+2. **Notifications and rewards are device-local only** (AsyncStorage, key `cashflow:state:v4`). They are seeded with demo data on first run. The ledger, budgets, settings and currency belong to the account and are read back with everything else.
 3. **Balances are computed on device and pushed** via `PATCH /api/accounts/:id`. Server routes must never also mutate a balance, or every change double-counts.
 4. **Every server query is scoped by `userId` from the verified session**, never from request input. Another user's row must read as 404.
-5. **Client-facing ids** (`acc-…`, `goal-…`, `inc-…`, `txn-…`) are strings unique *per user*, not globally. Re-POSTing a stored id returns the stored row — writes are idempotent so retries cannot duplicate.
-6. **Goal images are private.** The bucket is not public; `GET` routes return presigned URLs generated at read time. Never store a presigned URL in Mongo.
+5. **Client-facing ids** (`acc-…`, `goal-…`, `inc-…`, `debt-…`, `bud-…`, `txn-…`) are strings unique *per user*, not globally. Re-POSTing a stored id returns the stored row — writes are idempotent so retries cannot duplicate.
+6. **Goal and profile images are private.** The bucket is not public; `GET` routes return presigned URLs generated at read time. Never store a presigned URL in Mongo. Because the link is signed per read, photos cannot be cached as the source of truth on the device — which is why goals and profile pictures are neither seeded nor persisted.
 7. **Do not add secrets to context or commits.** `server/.env` is gitignored; `.env.example` is the committed template.
 
 ## Commands

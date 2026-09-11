@@ -11,14 +11,16 @@ Single-user-per-account. Every server record is owned by one signed-in user; the
 | Feature | Where |
 |---|---|
 | Email OTP registration (3 steps), password sign-in, biometric unlock | `mobile/app/(auth)/`, `server/src/routes/auth.js` |
+| Profile photo and cover | `mobile/app/(tabs)/profile.tsx`, `server/src/routes/profile.js` |
 | Accounts — wallets/bank accounts holding balances | `server/src/routes/accounts.js` |
-| Transactions — income and expense against an account and category | `mobile/app/add-transaction.tsx` |
+| Transactions — income and expense against an account and category | `mobile/app/add-transaction.tsx`, `server/src/routes/incomes.js`, `server/src/routes/expenses.js` |
 | Savings goals with an uploaded photo, target amount and free-choice deadline | `mobile/app/add-goal.tsx`, `server/src/routes/goals.js` |
-| Debts — money borrowed from or lent to a person, kept out of income/spending | `mobile/app/add-debt.tsx` |
-| Monthly category budgets with warning thresholds | `mobile/app/edit-budget.tsx` |
+| Debts — money borrowed from or lent to a person, kept out of income/spending | `mobile/app/add-debt.tsx`, `mobile/app/edit-debt.tsx`, `server/src/routes/debts.js` |
+| Monthly category budgets with warning thresholds | `mobile/app/edit-budget.tsx`, `server/src/routes/budgets.js` |
 | Analytics — category breakdown, monthly totals, insights, tracking streak | `mobile/app/(tabs)/analytics.tsx`, `mobile/src/utils/analytics.ts` |
 | Rewards — points and badges for logging habits | `mobile/app/rewards.tsx` |
 | Notifications feed | `mobile/app/notifications.tsx` |
+| Preferences — hide balance, alerts, currency — follow the account across devices | `mobile/app/(tabs)/profile.tsx`, `server/src/routes/preferences.js` |
 
 Deliberately absent: the app never asks for or stores an account or card number.
 

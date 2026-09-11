@@ -7,8 +7,13 @@ const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const requireAuth = require('./src/middleware/requireAuth');
 const accountRoutes = require('./src/routes/accounts');
 const authRoutes = require('./src/routes/auth');
+const budgetRoutes = require('./src/routes/budgets');
+const debtRoutes = require('./src/routes/debts');
+const expenseRoutes = require('./src/routes/expenses');
 const goalRoutes = require('./src/routes/goals');
 const incomeRoutes = require('./src/routes/incomes');
+const preferenceRoutes = require('./src/routes/preferences');
+const profileRoutes = require('./src/routes/profile');
 
 const app = express();
 
@@ -35,12 +40,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api', requireAuth);
 
 app.use('/api/accounts', accountRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/debts', debtRoutes);
+app.use('/api/expenses', expenseRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/incomes', incomeRoutes);
-
-app.get('/api/me/summary', (req, res) => {
-  res.json({ user: req.user.toPublic() });
-});
+app.use('/api/preferences', preferenceRoutes);
+app.use('/api/me', profileRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -26,8 +26,13 @@ Request flow: `index.js` → `cors` → `express.json` → route-level middlewar
 app.use('/api/auth', authRoutes);   // the only unauthenticated routes
 app.use('/api', requireAuth);       // everything below is private by default
 app.use('/api/accounts', accountRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/debts', debtRoutes);
+app.use('/api/expenses', expenseRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/incomes', incomeRoutes);
+app.use('/api/preferences', preferenceRoutes);
+app.use('/api/me', profileRoutes);
 ```
 
 A router added under `/api` after this line is protected the moment it is mounted. `GET /` (health) sits above the gate.
@@ -36,27 +41,30 @@ A router added under `/api` after this line is protected the moment it is mounte
 
 ## Database
 
-MongoDB via Mongoose. Five collections.
+MongoDB via Mongoose. Eight collections.
 
 | Collection | Model | Owner key | Indexes |
 |---|---|---|---|
-| `users` | `User` | — | `email` unique |
+| `users` | `User` | — | `email` unique. Preferences, avatar and cover are embedded subdocuments, not collections — one set per account |
 | `otps` | `Otp` | — | `email` unique; TTL on `expiresAt` (self-sweeping) |
 | `accounts` | `Account` | `userId` | `{userId, id}` unique |
 | `incomes` | `Income` | `userId` | `{userId, id}` unique; `{userId, date: -1}` |
+| `expenses` | `Expense` | `userId` | `{userId, id}` unique; `{userId, date: -1}` |
 | `goals` | `Goal` | `userId` | `{userId, id}` unique; `{userId, deadline: 1}` |
+| `debts` | `Debt` | `userId` | `{userId, id}` unique; `{userId, date: -1}` |
+| `budgets` | `Budget` | `userId` | `{userId, id}` unique; `{userId, categoryId}` unique — one monthly cap per spending category |
 
 Every owned collection carries both a Mongo `_id` and a client-facing `id` string. The client id is what the phone's local records point at, and is unique **per user** — two users can both hold `acc-everyday`.
 
-`Goal.image` is an embedded sub-document (`key`, `url`, `cid`, `size`, `contentType`, `uploadedAt`). Image **bytes are never stored in Mongo** — only the record needed to fetch, replace and delete the object.
+`Goal.image`, `User.avatar` and `User.cover` are the same embedded sub-document (`key`, `url`, `cid`, `size`, `contentType`, `uploadedAt`). Image **bytes are never stored in Mongo** — only the record needed to fetch, replace and delete the object.
 
 ## Object storage
 
 Filebase, S3-compatible, accessed with `@aws-sdk/client-s3`.
 
 - `forcePathStyle: true` is mandatory — Filebase addresses buckets as `s3.filebase.com/<bucket>`, not `<bucket>.s3.filebase.com`.
-- Object key layout: `goals/<userId>/<goalId>/<timestamp>-<random>.<ext>` — user-first, so one person's files share a prefix.
-- **The bucket is private.** The stored object URL answers 403 to anyone without the account keys. `GET`/`POST`/`PATCH` responses therefore return a **presigned URL** generated at read time (`present()` in `routes/goals.js`, 7-day TTL — SigV4's maximum).
+- Object key layout: `goals/<userId>/<goalId>/…` and `profile/<userId>/avatar|cover/…` — user-first, so one person's files share a prefix.
+- **The bucket is private.** The stored object URL answers 403 to anyone without the account keys. `GET`/`POST`/`PATCH` responses therefore return a **presigned URL** generated at read time (`present()` / `presentUser()`, 7-day TTL — SigV4's maximum).
 - The bucket is auto-provisioned: `ensureBucket()` does a `HeadBucket`, and creates it only on a genuine 404. Cached per process, so it costs one request per boot.
 - Uploads are validated before they reach storage: allowed MIME type, 8 MB cap, and a **magic-number check** — the declared content type is the client's word, not evidence.
 
@@ -83,7 +91,7 @@ GestureHandlerRootView
 |---|---|
 | `(auth)` | `login`, `register` |
 | `(tabs)` | `index` (Home), `transactions` (Activity), `analytics`, `goals` (Plan), `profile` |
-| root modals | `add-transaction`, `add-goal`, `add-debt`, `edit-budget` |
+| root modals | `add-transaction`, `add-goal`, `add-debt`, `edit-debt`, `edit-budget` |
 | root screens | `transaction/[id]`, `notifications`, `rewards` |
 
 ### State
@@ -93,7 +101,7 @@ Two React contexts. No Redux/Zustand.
 | Context | Holds | Persistence |
 |---|---|---|
 | `AuthContext` | session status, token, user, biometric enrolment | `expo-secure-store` (keychain), AsyncStorage on web |
-| `FinanceContext` | the whole `FinanceState` + server sync for accounts, goals, income | AsyncStorage `cashflow:state:v4` |
+| `FinanceContext` | the whole `FinanceState` + server sync for accounts, goals, debts, budgets, income | AsyncStorage `cashflow:state:v4` |
 
 `FinanceContext` is a `useReducer` over `FinanceState` plus effects that reconcile with the server.
 
@@ -102,10 +110,15 @@ Two React contexts. No Redux/Zustand.
 | Data | Source of truth | Notes |
 |---|---|---|
 | Accounts | Server | Fetched on launch; `accounts` is excluded from the persisted local state |
-| Goals | Server | Fetched on launch; local seed replaced once the server answers |
+| Goals | Server | Fetched on launch; excluded from the persisted local state and from the seed. The pictures are warmed into the image cache before the list is released, so `goalsLoading` covers them too |
+| Debts | Server | Fetched on launch; excluded from the persisted local state and from the seed. Add, edit, repay and delete are all server-first |
+| Budgets | Server | Fetched on launch; excluded from the persisted local state and from the seed. Add, edit and delete are server-first. Spent is derived from the ledger, never stored |
 | Income total | Server | `GET /api/incomes?from&to` for the current month |
-| Transactions | Device | Income entries are mirrored to the server; expenses are not |
-| Budgets, debts, notifications, rewards, settings, profile | Device | AsyncStorage only |
+| Expenses | Server | Fetched on launch; add/delete server-first; excluded from the persisted local state. Own collection, parallel to income, so each side's totals never scan the other |
+| Preferences | Server | Fetched on launch; excluded from the persisted local state. Currency plus the four toggles live on the `User` document, so a second phone reads the same set. Biometric unlock stays on the device — the hardware is here |
+| Profile photos | Server | Avatar and cover on `User`. Fetched with `/api/auth/me`; signed per read; not seeded or persisted. Prefetched before the account is released, so the header never draws a hole |
+| Transactions | Server | Fetched on launch (income and expenses as two collections, merged into one list). Not seeded, not persisted. Activity shows only these rows |
+| Notifications, rewards | Device | AsyncStorage only |
 
 ### Data flow — balances
 

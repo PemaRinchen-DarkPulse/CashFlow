@@ -39,13 +39,31 @@ A wrong email and a wrong password both answer `bad_credentials` (401), and a mi
 ## Authenticated
 
 ### `GET /api/auth/me`
-→ `{ user }`. Called on launch: 200 means the session is still good, 401 means show sign-in.
+→ `{ user }`. Called on launch: 200 means the session is still good, 401 means show sign-in. `avatar` and `cover` are presigned URLs when a photo has been uploaded.
 
 ### `POST /api/auth/logout`
 → `204`. Stateless — only confirms the token was valid.
 
 ### `GET /api/me/summary`
-→ `{ user }`. Defined inline in `index.js`.
+→ `{ user }`. Same shape as `/api/auth/me`, including signed photo URLs. Lives in `src/routes/profile.js`.
+
+### `PATCH /api/me/photos`
+Profile picture and cover. Accepts **JSON or `multipart/form-data`**. Multer ignores non-multipart, so a removal need not send a file.
+
+| Body | Meaning |
+|---|---|
+| `avatar` (file) | Replace the round photo |
+| `cover` (file) | Replace the banner |
+| `removeAvatar` | Clear the round photo |
+| `removeCover` | Clear the banner |
+
+→ `{ user }` with freshly signed URLs. Empty body is `empty_patch` (400). Same upload rules as goals: 8 MB, JPEG/PNG/WebP/HEIC, magic-number check. Write order: upload first, save the user, then delete the superseded object.
+
+**User shape**
+
+```
+{ id, name, email, createdAt, avatar?, cover? }
+```
 
 ---
 
@@ -92,13 +110,86 @@ Validation: `target` > 0; `saved` is **capped at `target`, not rejected** above 
 
 Storage errors are named, never 500s: `storage_unconfigured` (400), `storage_bucket_missing`, `storage_bucket_taken`, `storage_bucket_invalid`, `storage_bucket_limit`, `storage_rejected`, `storage_unavailable` (502). Bad uploads: `invalid_image`, `image_too_large` (400) — including a file whose bytes do not match its declared type.
 
+## Debts — `src/routes/debts.js`
+
+Money borrowed from or lent to somebody. Limits: 200 records per user, person ≤ 60 chars, note ≤ 200, `principal` > 0.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/debts` | — | `{ debts }` newest first |
+| `GET` | `/api/debts/:id` | — | `{ debt }` |
+| `POST` | `/api/debts` | `person`, `direction`, `principal`, `accountId`, `repaid?`, `date?`, `note?`, `id?` | `201 { debt }` |
+| `PATCH` | `/api/debts/:id` | any of the above | `{ debt }` |
+| `DELETE` | `/api/debts/:id` | — | `204` |
+
+**Debt shape**
+
+```
+{ id, person, direction: 'borrowed' | 'lent',
+  principal, repaid, date (ISO), note?, accountId }
+```
+
+- The whole list comes back rather than a page of it: the app sums "you owe" and "owed to you" from it, so a partial listing would put a wrong figure on screen.
+- `direction` is an enum — anything else is `invalid_direction` (400). `borrowed` means the user owes; `lent` means they are owed.
+- **A repayment is a `PATCH` raising `repaid`**, sent as the new running total rather than an increment, so a request that arrives twice settles the debt once. There is no repayment endpoint.
+- `repaid` is **capped at `principal`, not rejected** above it, for the same reason as `Goal.saved`: settling the last of a debt cannot lose the payment. The cap is re-applied after the whole body, so lowering `principal` and raising `repaid` in one request still lands on a consistent pair.
+- `accountId` must be one of the caller's own accounts; anything else is `account_not_found` (400).
+- Re-POSTing a stored `id` returns the stored record, so the write is safe to retry.
+- **Does not touch account balances.** The client owns those and pushes them separately.
+
+## Budgets — `src/routes/budgets.js`
+
+A monthly spending cap on one expense category. Limits: one row per spending category (11 categories), `limit` > 0.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/budgets` | — | `{ budgets }` oldest first |
+| `GET` | `/api/budgets/:id` | — | `{ budget }` |
+| `POST` | `/api/budgets` | `categoryId`, `limit`, `id?` | `201 { budget }` |
+| `PATCH` | `/api/budgets/:id` | any of `categoryId`, `limit` | `{ budget }` |
+| `DELETE` | `/api/budgets/:id` | — | `204` |
+
+**Budget shape**
+
+```
+{ id, categoryId, limit }
+```
+
+- The whole list comes back rather than a page of it: the app derives spent-vs-limit from it against the ledger, so a partial listing would hide a category that is already over.
+- `categoryId` must be one of the app's expense categories (`food`, `groceries`, `shopping`, `transport`, `bills`, `fun`, `health`, `learning`, `travel`, `subs`, `other`). An income id is `invalid_category` (400) — a cap on money coming in is not a budget.
+- One cap per category: a second `POST` for a category that already has a row is `budget_exists` (409). Raise or lower the existing one with `PATCH`.
+- Re-POSTing a stored `id` returns the stored record, so the write is safe to retry.
+- **Does not store spent and does not touch account balances.** Spent is derived on the phone from this month's expenses; writing it here as well would be a second ledger the two could disagree on.
+
+## Preferences — `src/routes/preferences.js`
+
+A singleton on the `User` document, not a collection. There is always exactly one set per account.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/preferences` | — | `{ preferences }` every key present |
+| `PATCH` | `/api/preferences` | any of `currency`, `hideBalance`, `budgetAlerts`, `goalReminders`, `weeklyDigest` | `{ preferences }` |
+
+**Preferences shape**
+
+```
+{ currency, hideBalance, budgetAlerts, goalReminders, weeklyDigest }
+```
+
+- A user who has never changed anything gets the defaults (`Nu.`, all toggles on) rather than a 404: "never configured" and "configured to the defaults" are the same thing to the app.
+- Every PATCH field is optional, but at least one recognised field is required (`empty_patch` 400). Unknown keys are `unknown_setting` (400) rather than ignored — a typo must not look like it saved.
+- Toggles must be real booleans. The string `"false"` is rejected: `Boolean("false")` is `true`, so coercion would store the opposite of what was asked.
+- `currency` is a symbol (`Nu.`, `$`, `INR`), 1–8 characters, no whitespace inside.
+- No POST and no DELETE: the set exists from the moment the account does, and putting everything back means sending the defaults.
+- No extra database read on GET: `requireAuth` has already loaded the user these are stored on.
+
 ## Incomes — `src/routes/incomes.js`
 
 Separate collection from transactions. Limits: title ≤ 60, note ≤ 200, amount > 0.
 
 | Method | Path | Query / Body | Response |
 |---|---|---|---|
-| `GET` | `/api/incomes` | `accountId?`, `from?`, `to?`, `limit?` (1–500, default 100) | `{ incomes, total, count }` |
+| `GET` | `/api/incomes` | `accountId?`, `from?`, `to?`, `limit?` (1–2000, default 500) | `{ incomes, total, count }` |
 | `GET` | `/api/incomes/:id` | — | `{ income }` |
 | `POST` | `/api/incomes` | `title`, `accountId`, `categoryId`, `amount`, `date?`, `note?`, `id?` | `201 { income }` |
 | `PATCH` | `/api/incomes/:id` | any of the above | `{ income }` |
@@ -109,6 +200,25 @@ Separate collection from transactions. Limits: title ≤ 60, note ≤ 200, amoun
 - Re-POSTing a stored `id` returns the stored entry — this is what makes the app's hand-off of local income safe to retry.
 - **Does not touch account balances.** The client owns those and pushes them separately; doing both would double-count.
 
+## Expenses — `src/routes/expenses.js`
+
+Money going out. Parallel to `incomes` rather than a shared ledger table, so "earned this month" never scans spending. Limits: 2000 per user, title ≤ 60, note ≤ 200, `amount` > 0.
+
+| Method | Path | Query / Body | Response |
+|---|---|---|---|
+| `GET` | `/api/expenses` | `accountId?`, `from?`, `to?`, `limit?` (1–2000, default 500) | `{ expenses, total, count }` newest first |
+| `GET` | `/api/expenses/:id` | — | `{ expense }` |
+| `POST` | `/api/expenses` | `title`, `accountId`, `categoryId`, `amount`, `date?`, `note?`, `id?` | `201 { expense }` |
+| `PATCH` | `/api/expenses/:id` | any of the above | `{ expense }` |
+| `DELETE` | `/api/expenses/:id` | — | `204` |
+
+- `kind` is `'expense'` on the serialiser, not stored.
+- `total` is summed server-side over the **whole filter**, not the returned page.
+- `accountId` must be one of the caller's own accounts; anything else is `account_not_found` (400).
+- Re-POSTing a stored `id` returns the stored entry — retries and the launch hand-off of older local expenses cannot double-count.
+- **Does not touch account balances.** The client owns those and pushes them separately; doing both would double-count.
+- Cap `too_many_expenses` (409) at 2000.
+
 ---
 
 ## Mobile API clients — `mobile/src/api/`
@@ -117,9 +227,14 @@ Separate collection from transactions. Limits: title ≤ 60, note ≤ 200, amoun
 |---|---|
 | `client.ts` | `request(path, { method, body, token })`, `isApiConfigured()`. Never throws — resolves `{ ok: true, data }` or `{ ok: false, code, message }`. Passes a `FormData` body through without a `content-type` header |
 | `authApi.ts` | `startRegistration`, `verifyRegistration`, `completeRegistration`, `login`, `fetchMe`, `logout` |
+| `profileApi.ts` | `updateServerPhotos`. Multipart when a file goes with it, JSON for a removal |
 | `accountsApi.ts` | `fetchServerAccounts`, `createServerAccount`, `updateServerAccount`, `deleteServerAccount` |
+| `debtsApi.ts` | `fetchServerDebts`, `createServerDebt`, `updateServerDebt`, `deleteServerDebt` |
+| `budgetsApi.ts` | `fetchServerBudgets`, `createServerBudget`, `updateServerBudget`, `deleteServerBudget` |
 | `goalsApi.ts` | `fetchServerGoals`, `createServerGoal`, `updateServerGoal`, `deleteServerGoal`. Sends JSON without a picture, multipart with one |
 | `incomesApi.ts` | `fetchServerIncomes`, `createServerIncome`, `deleteServerIncome` |
+| `expensesApi.ts` | `fetchServerExpenses`, `createServerExpense`, `deleteServerExpense` |
+| `preferencesApi.ts` | `fetchServerPreferences`, `updateServerPreferences`. `ServerPreferences` is `Settings` plus `currency`, so adding a toggle and forgetting the server type is a compile error |
 
 React Native's `FormData` takes `{ uri, name, type }` where a browser takes a `File`; the bytes are read from the device path at send time, so an image is never loaded into JS memory.
 

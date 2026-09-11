@@ -159,24 +159,24 @@ function looksLikeImage(buffer) {
  * files sit under one prefix, which makes them listable and removable together
  * if that account ever goes.
  */
-function buildKey(userId, goalId, extension) {
+function buildKey(folder, userId, id, extension) {
   const unique = crypto.randomBytes(8).toString('hex');
-  return `goals/${userId}/${goalId}/${Date.now().toString(36)}-${unique}.${extension}`;
+  return `${folder}/${userId}/${id}/${Date.now().toString(36)}-${unique}.${extension}`;
 }
 
 /**
- * Put a goal picture in the bucket and hand back what Mongo should remember.
+ * Put a picture in the bucket and hand back what Mongo should remember.
  *
  * Only metadata is returned — never the bytes. The file lives in Filebase and
  * the database keeps the small record needed to find, show and delete it, so
- * reading a goal never pulls an image through the database.
+ * reading a user or a goal never pulls an image through the database.
  */
-async function uploadGoalImage({ userId, goalId, file }) {
+async function uploadImage({ folder, userId, id, file }) {
   const extension = assertUsableImage(file);
   // Checked after the file is validated, so a bad upload never provisions
   // storage it was never going to use.
   await ensureBucket();
-  const key = buildKey(userId, goalId, extension);
+  const key = buildKey(folder, userId, id, extension);
 
   let result;
   try {
@@ -204,6 +204,15 @@ async function uploadGoalImage({ userId, goalId, file }) {
     contentType: file.mimetype,
     uploadedAt: new Date(),
   };
+}
+
+async function uploadGoalImage({ userId, goalId, file }) {
+  return uploadImage({ folder: 'goals', userId, id: goalId, file });
+}
+
+/** `kind` is `avatar` or `cover` — one object per slot, replaced on each upload. */
+async function uploadProfileImage({ userId, kind, file }) {
+  return uploadImage({ folder: 'profile', userId, id: kind, file });
 }
 
 /**
@@ -334,6 +343,7 @@ module.exports = {
   SIGNED_URL_TTL,
   isConfigured,
   uploadGoalImage,
+  uploadProfileImage,
   deleteObject,
   signedUrl,
   publicUrl,

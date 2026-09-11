@@ -10,6 +10,7 @@ const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const { signOtpToken, signSession, verifyOtpToken } = require('../utils/tokens');
 const { requireCode, requireEmail, requireName, requirePassword } = require('../utils/validate');
+const presentUser = require('../utils/presentUser');
 
 const PASSWORD_ROUNDS = 12;
 
@@ -91,7 +92,7 @@ router.post(
     });
 
     const { token, expiresAt } = signSession(user);
-    res.status(201).json({ user: user.toPublic(), token, expiresAt });
+    res.status(201).json({ user: await presentUser(user), token, expiresAt });
   })
 );
 
@@ -117,7 +118,7 @@ router.post(
     if (!(await bcrypt.compare(password, user.passwordHash))) throw wrong;
 
     const { token, expiresAt } = signSession(user);
-    res.json({ user: user.toPublic(), token, expiresAt });
+    res.json({ user: await presentUser(user), token, expiresAt });
   })
 );
 
@@ -130,7 +131,28 @@ router.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    res.json({ user: req.user.toPublic() });
+    res.json({ user: await presentUser(req.user) });
+  })
+);
+
+/**
+ * PATCH /api/auth/me — rename the account.
+ *
+ * The name only, deliberately. The email is the identity a code was sent to and
+ * the one used to sign in, so changing it is a verification flow of its own
+ * rather than an edit; the password has its own path for the same reason.
+ *
+ * This is what makes the name on the profile card belong to the account instead
+ * of to one phone: it is read back from here on every launch, so a name typed
+ * on one device is the name the next device shows.
+ */
+router.patch(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    req.user.name = requireName(req.body?.name);
+    await req.user.save();
+    res.json({ user: await presentUser(req.user) });
   })
 );
 
