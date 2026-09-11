@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import {
   createContext,
   useCallback,
@@ -19,6 +20,23 @@ import {
   updateServerAccount,
 } from '@/src/api/accountsApi';
 import {
+  createServerBudget,
+  deleteServerBudget,
+  fetchServerBudgets,
+  updateServerBudget,
+} from '@/src/api/budgetsApi';
+import {
+  createServerDebt,
+  deleteServerDebt,
+  fetchServerDebts,
+  updateServerDebt,
+} from '@/src/api/debtsApi';
+import {
+  createServerExpense,
+  deleteServerExpense,
+  fetchServerExpenses,
+} from '@/src/api/expensesApi';
+import {
   createServerIncome,
   deleteServerIncome,
   fetchServerIncomes,
@@ -36,7 +54,13 @@ import type {
   Transaction,
   TransactionKind,
 } from '@/src/types';
-import { debtSummary, outstandingOf, trackingStreak, type DebtSummary } from '@/src/utils/analytics';
+import {
+  cashEffectOf,
+  debtSummary,
+  outstandingOf,
+  trackingStreak,
+  type DebtSummary,
+} from '@/src/utils/analytics';
 import { endOfMonth, startOfMonth } from '@/src/utils/date';
 import {
   createServerGoal,
@@ -45,11 +69,54 @@ import {
   updateServerGoal,
   type GoalImageUpload,
 } from '@/src/api/goalsApi';
+import {
+  fetchServerPreferences,
+  updateServerPreferences,
+  type ServerPreferences,
+} from '@/src/api/preferencesApi';
+
+/**
+ * How many expenses one launch asks for. Matches the server's cap, so the list
+ * the phone draws is the list the database holds rather than a page of it.
+ */
+const EXPENSE_LIST_LIMIT = 2000;
+const INCOME_LIST_LIMIT = 2000;
 
 /** Points awarded for healthy habits. */
 const POINTS_PER_LOG = 5;
 const POINTS_PER_CONTRIBUTION = 25;
 const POINTS_PER_REPAYMENT = 15;
+
+/**
+ * How long the goal list waits on its pictures before giving up on them.
+ *
+ * A stalled image must not hold the list back for ever — that turns "loading"
+ * into its own kind of broken. Past this the cards are handed over and anything
+ * still missing falls back to the goal's icon.
+ */
+const GOAL_IMAGE_WARM_MS = 8000;
+
+/**
+ * Pull every goal's picture into the image cache before the goals are handed to
+ * the screens.
+ *
+ * A goal card leads with a photo, so releasing the list the moment the JSON
+ * lands draws a row of cards with holes in them that fill in one at a time.
+ * Waiting here folds the pictures into `goalsLoading`, so every screen reading
+ * that flag shows either a finished card or a skeleton, never half of one.
+ *
+ * Failures are swallowed rather than propagated: a picture that has expired or
+ * cannot be reached is no reason to withhold the goal it belongs to.
+ */
+async function warmGoalImages(goals: Goal[]): Promise<void> {
+  const urls = goals.map((goal) => goal.image).filter((url): url is string => !!url);
+  if (urls.length === 0) return;
+
+  await Promise.race([
+    Promise.all(urls.map((url) => Image.prefetch(url).catch(() => false))),
+    new Promise((resolve) => setTimeout(resolve, GOAL_IMAGE_WARM_MS)),
+  ]);
+}
 
 export type NewTransaction = {
   title: string;
@@ -65,12 +132,17 @@ type Action =
   | { type: 'hydrate'; state: FinanceState }
   | { type: 'addTransaction'; transaction: Transaction }
   | { type: 'deleteTransaction'; id: string }
-  | { type: 'upsertBudget'; categoryId: string; limit: number }
+  | { type: 'setExpenses'; expenses: Transaction[] }
+  | { type: 'setIncomes'; incomes: Transaction[] }
+  | { type: 'setBudgets'; budgets: Budget[] }
+  | { type: 'replaceBudget'; budget: Budget }
   | { type: 'deleteBudget'; id: string }
   | { type: 'addGoal'; goal: Goal }
   | { type: 'addDebt'; debt: Debt }
   | { type: 'repayDebt'; id: string; amount: number }
   | { type: 'deleteDebt'; id: string }
+  | { type: 'setDebts'; debts: Debt[] }
+  | { type: 'replaceDebt'; debt: Debt }
   | { type: 'contributeToGoal'; id: string; amount: number }
   | { type: 'deleteGoal'; id: string }
   | { type: 'addAccount'; account: Account }
@@ -79,6 +151,8 @@ type Action =
   | { type: 'setGoals'; goals: Goal[] }
   | { type: 'replaceGoal'; goal: Goal }
   | { type: 'updateSetting'; key: keyof Settings; value: boolean }
+  | { type: 'setPreferences'; preferences: ServerPreferences }
+  | { type: 'setIdentity'; name: string; email: string; memberSince: string; avatar?: string; cover?: string }
   | { type: 'updateProfile'; name: string; email: string }
   | { type: 'readNotifications' }
   | { type: 'clearNotifications' }
@@ -88,12 +162,16 @@ function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function adjustAccount(state: FinanceState, accountId: string, delta: number) {
-  return state.accounts.map((account) =>
+function adjustBalance(accounts: Account[], accountId: string, delta: number): Account[] {
+  return accounts.map((account) =>
     account.id === accountId
       ? { ...account, balance: Math.round((account.balance + delta) * 100) / 100 }
       : account
   );
+}
+
+function adjustAccount(state: FinanceState, accountId: string, delta: number) {
+  return adjustBalance(state.accounts, accountId, delta);
 }
 
 function withPoints(state: FinanceState, points: number): FinanceState['rewards'] {
@@ -131,18 +209,48 @@ function reducer(state: FinanceState, action: Action): FinanceState {
       };
     }
 
-    case 'upsertBudget': {
-      const existing = state.budgets.find((item) => item.categoryId === action.categoryId);
-      if (existing) {
+    /**
+     * The server's expense list, swapped in for whatever this device had been
+     * holding. Income stays: it has its own collection and its own sync. The
+     * two halves of the ledger meet here because the screens still read one
+     * `transactions` array.
+     */
+    case 'setExpenses': {
+      const kept = state.transactions.filter((item) => item.kind !== 'expense');
+      return {
+        ...state,
+        transactions: [...kept, ...action.expenses].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      };
+    }
+
+    /** Same swap for the income half. Activity then holds only what the database has. */
+    case 'setIncomes': {
+      const kept = state.transactions.filter((item) => item.kind !== 'income');
+      return {
+        ...state,
+        transactions: [...kept, ...action.incomes].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      };
+    }
+
+    case 'setBudgets':
+      return { ...state, budgets: action.budgets };
+
+    /** The server's copy of one budget, after a write it confirmed. */
+    case 'replaceBudget': {
+      const exists = state.budgets.some((item) => item.id === action.budget.id);
+      if (exists) {
         return {
           ...state,
           budgets: state.budgets.map((item) =>
-            item.id === existing.id ? { ...item, limit: action.limit } : item
+            item.id === action.budget.id ? action.budget : item
           ),
         };
       }
-      const budget: Budget = { id: makeId('bud'), categoryId: action.categoryId, limit: action.limit };
-      return { ...state, budgets: [...state.budgets, budget] };
+      return { ...state, budgets: [...state.budgets, action.budget] };
     }
 
     case 'deleteBudget':
@@ -185,11 +293,10 @@ function reducer(state: FinanceState, action: Action): FinanceState {
     case 'addDebt': {
       // Borrowing puts cash in the account; lending takes it out. Neither is
       // income or spending, so no transaction is written.
-      const delta = action.debt.direction === 'borrowed' ? action.debt.principal : -action.debt.principal;
       return {
         ...state,
         debts: [action.debt, ...state.debts],
-        accounts: adjustAccount(state, action.debt.accountId, delta),
+        accounts: adjustAccount(state, action.debt.accountId, cashEffectOf(action.debt)),
       };
     }
 
@@ -218,12 +325,32 @@ function reducer(state: FinanceState, action: Action): FinanceState {
       if (!debt) return state;
       // Unwind only the part that still stands: borrowed cash still held has to
       // leave the balance again, money still out on loan comes back.
-      const outstanding = outstandingOf(debt);
-      const delta = debt.direction === 'borrowed' ? -outstanding : outstanding;
       return {
         ...state,
         debts: state.debts.filter((item) => item.id !== action.id),
-        accounts: adjustAccount(state, debt.accountId, delta),
+        accounts: adjustAccount(state, debt.accountId, -cashEffectOf(debt)),
+      };
+    }
+
+    /** The server's list, which is the list — as with accounts and goals. */
+    case 'setDebts':
+      return { ...state, debts: action.debts };
+
+    /**
+     * The server's copy of one debt, after an edit it confirmed. The balance is
+     * moved by the difference between the two versions rather than recomputed,
+     * so an edit that switches account takes the cash out of the old one and
+     * puts it into the new one.
+     */
+    case 'replaceDebt': {
+      const previous = state.debts.find((item) => item.id === action.debt.id);
+      if (!previous) return state;
+      let accounts = adjustBalance(state.accounts, previous.accountId, -cashEffectOf(previous));
+      accounts = adjustBalance(accounts, action.debt.accountId, cashEffectOf(action.debt));
+      return {
+        ...state,
+        accounts,
+        debts: state.debts.map((item) => (item.id === action.debt.id ? action.debt : item)),
       };
     }
 
@@ -251,6 +378,33 @@ function reducer(state: FinanceState, action: Action): FinanceState {
     case 'updateSetting':
       return { ...state, settings: { ...state.settings, [action.key]: action.value } };
 
+    /**
+     * The complete set the server holds. Settings and currency travel together
+     * because they are one document there — applying one without the other
+     * would leave a phone showing Nu. next to someone who switched currency.
+     */
+    case 'setPreferences': {
+      const { currency, ...settings } = action.preferences;
+      return {
+        ...state,
+        settings,
+        profile: { ...state.profile, currency },
+      };
+    }
+
+    case 'setIdentity':
+      return {
+        ...state,
+        profile: {
+          ...state.profile,
+          name: action.name,
+          email: action.email,
+          memberSince: action.memberSince,
+          avatar: action.avatar,
+          cover: action.cover,
+        },
+      };
+
     case 'updateProfile':
       return { ...state, profile: { ...state.profile, name: action.name, email: action.email } };
 
@@ -270,6 +424,13 @@ function reducer(state: FinanceState, action: Action): FinanceState {
 
 /** What a write that has to reach the server before it counts resolves with. */
 export type MutationResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * The fields an edit can change. `repaid` is absent on purpose: settling a debt
+ * goes through `repayDebt`, which knows what is still outstanding, rather than
+ * through a form where a typo would silently rewrite the payment history.
+ */
+export type DebtEdit = Partial<Omit<Debt, 'id' | 'repaid'>>;
 
 type FinanceContextValue = {
   state: FinanceState;
@@ -295,10 +456,28 @@ type FinanceContextValue = {
   unreadCount: number;
   /** Consecutive days with at least one logged transaction, derived from the ledger. */
   streak: number;
-  addTransaction: (input: NewTransaction) => Transaction;
-  deleteTransaction: (id: string) => void;
-  setBudget: (categoryId: string, limit: number) => void;
-  deleteBudget: (id: string) => void;
+  addTransaction: (input: NewTransaction) => Promise<MutationResult>;
+  deleteTransaction: (id: string) => Promise<MutationResult>;
+  /** Spending is unknown until the server answers — not the same as none. */
+  expensesLoading: boolean;
+  expensesError: string | null;
+  refreshExpenses: () => void;
+  /**
+   * The Activity list is both halves of the ledger. Either side still loading
+   * means the list is not ready — showing income while spending is unknown
+   * would be a half-drawn ledger.
+   */
+  transactionsLoading: boolean;
+  transactionsError: string | null;
+  refreshTransactions: () => void;
+  /** Saved to the server first: the cap it hands back is the one kept locally. */
+  setBudget: (categoryId: string, limit: number) => Promise<MutationResult>;
+  /** Removed from the server first, so a refused delete leaves the list intact. */
+  deleteBudget: (id: string) => Promise<MutationResult>;
+  /** The budget list is unknown until the server answers — not the same as empty. */
+  budgetsLoading: boolean;
+  budgetsError: string | null;
+  refreshBudgets: () => void;
   /** Saved to the server first: the goal it hands back is the one kept locally. */
   addGoal: (
     input: Omit<Goal, 'id' | 'image'>,
@@ -321,10 +500,28 @@ type FinanceContextValue = {
   /** Removed from the server first, so a refused delete leaves the list intact. */
   deleteAccount: (id: string) => Promise<MutationResult>;
   refreshAccounts: () => void;
-  addDebt: (input: Omit<Debt, 'id' | 'repaid'> & { repaid?: number }) => void;
-  repayDebt: (id: string, amount: number) => void;
-  deleteDebt: (id: string) => void;
-  updateSetting: (key: keyof Settings, value: boolean) => void;
+  /** Saved to the server first: the record it hands back is the one kept locally. */
+  addDebt: (input: Omit<Debt, 'id' | 'repaid'> & { repaid?: number }) => Promise<MutationResult>;
+  /** Correct a record. Every field is optional; omitted ones are left alone. */
+  updateDebt: (id: string, input: DebtEdit) => Promise<MutationResult>;
+  /** Recorded on the server first, so a refused write leaves the debt as it was. */
+  repayDebt: (id: string, amount: number) => Promise<MutationResult>;
+  /** Removed from the server first, so a refused delete leaves the list intact. */
+  deleteDebt: (id: string) => Promise<MutationResult>;
+  /** The debt list is unknown until the server answers — not the same as empty. */
+  debtsLoading: boolean;
+  debtsError: string | null;
+  refreshDebts: () => void;
+  /**
+   * The switch moves immediately so it does not fight the finger, and a refused
+   * write puts it back. A setting that did not save is not left looking as if
+   * it had.
+   */
+  updateSetting: (key: keyof Settings, value: boolean) => Promise<MutationResult>;
+  /** The preferences are unknown until the server answers — not the seed defaults. */
+  preferencesLoading: boolean;
+  preferencesError: string | null;
+  refreshPreferences: () => void;
   updateProfile: (name: string, email: string) => void;
   markNotificationsRead: () => void;
   clearNotifications: () => void;
@@ -362,6 +559,35 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [goalsLoading, setGoalsLoading] = useState(true);
   const [goalsError, setGoalsError] = useState<string | null>(null);
   const [goalsRefresh, setGoalsRefresh] = useState(0);
+
+  /** Debts live in the database too, and start unknown for the same reason. */
+  const [debtsLoading, setDebtsLoading] = useState(true);
+  const [debtsError, setDebtsError] = useState<string | null>(null);
+  const [debtsRefresh, setDebtsRefresh] = useState(0);
+
+  /** Budgets live in the database too, and start unknown for the same reason. */
+  const [budgetsLoading, setBudgetsLoading] = useState(true);
+  const [budgetsError, setBudgetsError] = useState<string | null>(null);
+  const [budgetsRefresh, setBudgetsRefresh] = useState(0);
+
+  /**
+   * How the account is set up. Starts unknown: the seed's toggles are a
+   * placeholder, not this user's preferences, and must not be treated as such
+   * until the server has answered.
+   */
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [preferencesRefresh, setPreferencesRefresh] = useState(0);
+
+  /** Spending lives in the database, and starts unknown for the same reason. */
+  const [expensesLoading, setExpensesLoading] = useState(true);
+  const [expensesError, setExpensesError] = useState<string | null>(null);
+  const [expensesRefresh, setExpensesRefresh] = useState(0);
+
+  /** Income rows for the ledger, separate from this month's summed total. */
+  const [incomesLoading, setIncomesLoading] = useState(true);
+  const [incomesError, setIncomesError] = useState<string | null>(null);
+  const [incomesRefresh, setIncomesRefresh] = useState(0);
 
   const auth = useAuth();
   const token = auth?.token;
@@ -455,6 +681,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (!active) return;
 
       if (res.ok) {
+        // Nothing is released until the pictures are cached as well, so the
+        // list appears complete rather than filling itself in photo by photo.
+        await warmGoalImages(res.data.goals);
+        if (!active) return;
+
         dispatch({ type: 'setGoals', goals: res.data.goals });
         setGoalsError(null);
       } else {
@@ -469,51 +700,233 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [token, hydrated, goalsRefresh]);
 
   /**
-   * This month's income, read from the database rather than summed on device.
+   * The debt list, read from the database on every launch.
    *
-   * The figure the home screen shows is whatever the server holds, so it is the
-   * same on every phone signed into the account instead of whatever this one
-   * happens to have in storage.
-   *
-   * Income logged before the device had a session — or while it had no network
-   * — is handed over first. Each entry keeps its local id, which the server
-   * treats as idempotent, so a hand-off that is interrupted and retried cannot
-   * double-count. The total is then read back rather than adjusted locally, so
-   * what is on screen is a figure the database confirmed.
+   * As with accounts and goals, what the server answers with is the list, empty
+   * included. It matters more here than anywhere: the "you owe" and "owed to
+   * you" totals are summed from this list, and a stale local copy would put a
+   * figure on the home screen that nobody owes anybody.
    */
   useEffect(() => {
     if (!hydrated) return;
     if (!token) {
-      setMonthlyIncomeLoading(false);
+      setDebtsLoading(false);
       return;
     }
 
     let active = true;
 
     (async () => {
-      setMonthlyIncomeLoading(true);
+      setDebtsLoading(true);
+      const res = await fetchServerDebts(token);
+      if (!active) return;
 
-      const now = new Date();
-      const range = {
-        from: startOfMonth(now).toISOString(),
-        to: endOfMonth(now).toISOString(),
-      };
+      if (res.ok) {
+        dispatch({ type: 'setDebts', debts: res.data.debts });
+        setDebtsError(null);
+      } else {
+        setDebtsError(res.message);
+      }
+      setDebtsLoading(false);
+    })();
 
-      let res = await fetchServerIncomes(token, range);
+    return () => {
+      active = false;
+    };
+  }, [token, hydrated, debtsRefresh]);
+
+  /**
+   * The budget list, read from the database on every launch.
+   *
+   * As with debts, what the server answers with is the list, empty included. A
+   * stale local copy would put last month's caps on Analytics while this phone
+   * had already raised them from another device.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token) {
+      setBudgetsLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      setBudgetsLoading(true);
+      const res = await fetchServerBudgets(token);
+      if (!active) return;
+
+      if (res.ok) {
+        dispatch({ type: 'setBudgets', budgets: res.data.budgets });
+        setBudgetsError(null);
+      } else {
+        setBudgetsError(res.message);
+      }
+      setBudgetsLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [token, hydrated, budgetsRefresh]);
+
+  /**
+   * How this account is set up, read on every launch.
+   *
+   * A second phone must not invent its own defaults: hide-balance, alerts and
+   * currency are properties of the account, not of the device. Nothing stored
+   * locally stands in for them — a failed read leaves the seed values on screen
+   * only as a placeholder the Profile screen refuses to treat as the user's.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token) {
+      setPreferencesLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      setPreferencesLoading(true);
+      const res = await fetchServerPreferences(token);
+      if (!active) return;
+
+      if (res.ok) {
+        dispatch({ type: 'setPreferences', preferences: res.data.preferences });
+        setPreferencesError(null);
+      } else {
+        setPreferencesError(res.message);
+      }
+      setPreferencesLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [token, hydrated, preferencesRefresh]);
+
+  /**
+   * The name and email belong to the session, not to this phone's seed. Without
+   * this, a second device greets "Pema" until someone edits the profile by
+   * hand — the same class of lie as default preferences.
+   */
+  useEffect(() => {
+    const account = auth?.account;
+    if (!hydrated || !account) return;
+    dispatch({
+      type: 'setIdentity',
+      name: account.name,
+      email: account.email,
+      memberSince: account.createdAt,
+      avatar: account.avatar,
+      cover: account.cover,
+    });
+  }, [hydrated, auth?.account]);
+
+  /**
+   * Spending, read from the database on every launch.
+   *
+   * A second phone must not invent a blank ledger: expenses belong to the
+   * account. Local copies that this device made before the collection existed
+   * are handed over first (same id, so a retry cannot double-count), then the
+   * server's list replaces the expense half of `transactions`. Income is left
+   * alone — it has its own sync.
+   *
+   * Balances are not touched here. They already moved when the expense was
+   * logged, and the accounts fetch is what the home screen totals.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token) {
+      setExpensesLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      setExpensesLoading(true);
+
+      let res = await fetchServerExpenses(token, { limit: EXPENSE_LIST_LIMIT });
+      if (!active) return;
+
+      if (res.ok) {
+        const stored = new Set(res.data.expenses.map((expense) => expense.id));
+        const pending = transactionsRef.current.filter((item) => {
+          if (item.kind !== 'expense' || stored.has(item.id)) return false;
+          if (!item.accountId) return false;
+          // Demo rows from the old seed must not become this user's spending.
+          if (item.id.startsWith('seed-')) return false;
+          return true;
+        });
+
+        if (pending.length) {
+          await Promise.all(
+            pending.map((item) =>
+              createServerExpense(token, {
+                id: item.id,
+                title: item.title,
+                accountId: item.accountId,
+                categoryId: item.categoryId,
+                amount: item.amount,
+                date: item.date,
+                note: item.note,
+              })
+            )
+          );
+          if (!active) return;
+          res = await fetchServerExpenses(token, { limit: EXPENSE_LIST_LIMIT });
+          if (!active) return;
+        }
+      }
+
+      if (!active) return;
+
+      if (res.ok) {
+        dispatch({ type: 'setExpenses', expenses: res.data.expenses });
+        setExpensesError(null);
+      } else {
+        setExpensesError(res.message);
+      }
+      setExpensesLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [token, hydrated, expensesRefresh]);
+
+  /**
+   * Income rows, read from the database on every launch.
+   *
+   * Activity used to mix these with the seed's demo salary. That list is not
+   * this user's, so it is thrown away: what the server answers with is the
+   * income half, empty included. Local `txn-…` rows from before this existed
+   * are handed over first, the same way expenses are.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token) {
+      setIncomesLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      setIncomesLoading(true);
+
+      let res = await fetchServerIncomes(token, { limit: INCOME_LIST_LIMIT });
       if (!active) return;
 
       if (res.ok) {
         const stored = new Set(res.data.incomes.map((income) => income.id));
-        const monthStart = startOfMonth(now).getTime();
-        const monthEnd = endOfMonth(now).getTime();
-
         const pending = transactionsRef.current.filter((item) => {
           if (item.kind !== 'income' || stored.has(item.id)) return false;
-          // An entry booked against a removed account has no account to file it
-          // under, so it stays local rather than being refused by the server.
           if (!item.accountId) return false;
-          const at = new Date(item.date).getTime();
-          return at >= monthStart && at <= monthEnd;
+          if (item.id.startsWith('seed-')) return false;
+          return true;
         });
 
         if (pending.length) {
@@ -531,10 +944,50 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             )
           );
           if (!active) return;
-          res = await fetchServerIncomes(token, range);
+          res = await fetchServerIncomes(token, { limit: INCOME_LIST_LIMIT });
           if (!active) return;
         }
       }
+
+      if (!active) return;
+
+      if (res.ok) {
+        dispatch({ type: 'setIncomes', incomes: res.data.incomes });
+        setIncomesError(null);
+      } else {
+        setIncomesError(res.message);
+      }
+      setIncomesLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [token, hydrated, incomesRefresh]);
+
+  /**
+   * This month's income total, read from the database rather than summed on
+   * device. The rows themselves are loaded by the list fetch above; this is
+   * only the figure the home screen shows, over the current month.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token) {
+      setMonthlyIncomeLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      setMonthlyIncomeLoading(true);
+
+      const now = new Date();
+      const res = await fetchServerIncomes(token, {
+        from: startOfMonth(now).toISOString(),
+        to: endOfMonth(now).toISOString(),
+      });
+      if (!active) return;
 
       setMonthlyIncome(res.ok ? res.data.total : null);
       setMonthlyIncomeLoading(false);
@@ -580,6 +1033,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const refreshAccounts = useCallback(() => setAccountsRefresh((n) => n + 1), []);
   const refreshMonthlyIncome = useCallback(() => setIncomeRefresh((n) => n + 1), []);
   const refreshGoals = useCallback(() => setGoalsRefresh((n) => n + 1), []);
+  const refreshDebts = useCallback(() => setDebtsRefresh((n) => n + 1), []);
+  const refreshBudgets = useCallback(() => setBudgetsRefresh((n) => n + 1), []);
+  const refreshPreferences = useCallback(() => setPreferencesRefresh((n) => n + 1), []);
+  const refreshExpenses = useCallback(() => setExpensesRefresh((n) => n + 1), []);
+  const refreshTransactions = useCallback(() => {
+    setExpensesRefresh((n) => n + 1);
+    setIncomesRefresh((n) => n + 1);
+  }, []);
 
   const value = useMemo<FinanceContextValue>(() => {
     const totalBalance = state.accounts.reduce((sum, account) => sum + account.balance, 0);
@@ -596,6 +1057,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       goalsLoading,
       goalsError,
       refreshGoals,
+      debtsLoading,
+      debtsError,
+      budgetsLoading,
+      budgetsError,
+      expensesLoading,
+      expensesError,
+      refreshExpenses,
+      transactionsLoading: expensesLoading || incomesLoading,
+      transactionsError: expensesError ?? incomesError,
+      refreshTransactions,
       totalBalance,
       debts,
       netWorth: totalBalance + debts.net,
@@ -603,7 +1074,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       unreadCount: state.notifications.filter((item) => !item.read).length,
       categoryById: (id) => state.categories.find((item) => item.id === id),
 
-      addTransaction: (input) => {
+      addTransaction: async (input) => {
         const transaction: Transaction = {
           id: makeId('txn'),
           title: input.title.trim(),
@@ -617,15 +1088,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           // mid-edit — it keeps its history, it just moves no balance.
           accountId: input.accountId ?? state.accounts[0]?.id ?? '',
         };
-        dispatch({ type: 'addTransaction', transaction });
 
-        // Money in is kept in its own collection on the server, so it goes
-        // there as well as into the local ledger. The refresh below reads the
-        // month's total back once the write lands; a write that fails leaves
-        // the total as the server last confirmed it rather than inventing one,
-        // and the entry is handed over again on the next launch.
-        if (transaction.kind === 'income' && token && transaction.accountId) {
-          createServerIncome(token, {
+        if (transaction.kind === 'expense') {
+          if (!token) return { ok: false, message: 'Sign in to log an expense' };
+          if (!transaction.accountId) {
+            return { ok: false, message: 'Pick an account to spend from' };
+          }
+
+          // Written to the database first, so a refused save is not shown as if
+          // the money had left. The row it returns is what is kept — including
+          // the id, so the phone and the database point at the same purchase.
+          const res = await createServerExpense(token, {
             id: transaction.id,
             title: transaction.title,
             accountId: transaction.accountId,
@@ -633,22 +1106,99 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             amount: transaction.amount,
             date: transaction.date,
             note: transaction.note,
-          }).then(() => setIncomeRefresh((n) => n + 1));
+          });
+          if (!res.ok) return { ok: false, message: res.message };
+
+          dispatch({ type: 'addTransaction', transaction: res.data.expense });
+          return { ok: true };
         }
 
-        return transaction;
+        if (!token) return { ok: false, message: 'Sign in to log income' };
+        if (!transaction.accountId) {
+          return { ok: false, message: 'Pick an account to pay into' };
+        }
+
+        const res = await createServerIncome(token, {
+          id: transaction.id,
+          title: transaction.title,
+          accountId: transaction.accountId,
+          categoryId: transaction.categoryId,
+          amount: transaction.amount,
+          date: transaction.date,
+          note: transaction.note,
+        });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'addTransaction', transaction: res.data.income });
+        setIncomeRefresh((n) => n + 1);
+        return { ok: true };
       },
 
-      deleteTransaction: (id) => {
+      deleteTransaction: async (id) => {
         const removed = state.transactions.find((item) => item.id === id);
-        dispatch({ type: 'deleteTransaction', id });
+        if (!removed) return { ok: false, message: 'That record no longer exists' };
 
-        if (removed?.kind === 'income' && token) {
-          deleteServerIncome(token, id).then(() => setIncomeRefresh((n) => n + 1));
+        if (removed.kind === 'expense') {
+          if (!token) return { ok: false, message: 'Sign in to remove an expense' };
+
+          const res = await deleteServerExpense(token, id);
+          if (!res.ok) return { ok: false, message: res.message };
+
+          dispatch({ type: 'deleteTransaction', id });
+          return { ok: true };
         }
+
+        if (!token) return { ok: false, message: 'Sign in to remove income' };
+
+        const res = await deleteServerIncome(token, id);
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'deleteTransaction', id });
+        setIncomeRefresh((n) => n + 1);
+        return { ok: true };
       },
-      setBudget: (categoryId, limit) => dispatch({ type: 'upsertBudget', categoryId, limit }),
-      deleteBudget: (id) => dispatch({ type: 'deleteBudget', id }),
+      /**
+       * Written to the database first. A category that already has a cap is
+       * patched rather than posted, because the server refuses a second row
+       * for the same category — posting would 409 even though the user meant
+       * "raise the limit", not "add another".
+       */
+      setBudget: async (categoryId, limit) => {
+        if (!token) return { ok: false, message: 'Sign in to set a budget' };
+
+        const rounded = Math.round(limit * 100) / 100;
+        const existing = state.budgets.find((item) => item.categoryId === categoryId);
+
+        if (existing) {
+          const res = await updateServerBudget(token, existing.id, { limit: rounded });
+          if (!res.ok) return { ok: false, message: res.message };
+
+          dispatch({ type: 'replaceBudget', budget: res.data.budget });
+          return { ok: true };
+        }
+
+        const res = await createServerBudget(token, {
+          id: makeId('bud'),
+          categoryId,
+          limit: rounded,
+        });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'replaceBudget', budget: res.data.budget });
+        return { ok: true };
+      },
+
+      deleteBudget: async (id) => {
+        if (!token) return { ok: false, message: 'Sign in to remove a budget' };
+
+        const res = await deleteServerBudget(token, id);
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'deleteBudget', id });
+        return { ok: true };
+      },
+
+      refreshBudgets,
       /**
        * Written to the database first, and what it returns is what is kept —
        * including the image URL, which only exists once the file has actually
@@ -670,6 +1220,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           image
         );
         if (!res.ok) return { ok: false, message: res.message };
+
+        // Cached before the card exists, for the same reason the list is: the
+        // screen this returns to must not draw a goal with a hole where its
+        // picture goes. The upload just came off this device, so the fetch back
+        // is quick, and the save button stays in its loading state until it is
+        // genuinely done rather than only nearly.
+        await warmGoalImages([res.data.goal]);
 
         dispatch({ type: 'addGoal', goal: res.data.goal });
         return { ok: true };
@@ -741,30 +1298,113 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       refreshAccounts,
 
-      addDebt: (input) =>
-        dispatch({
-          type: 'addDebt',
-          debt: {
-            ...input,
-            person: input.person.trim(),
-            principal: Math.round(input.principal * 100) / 100,
-            repaid: input.repaid ?? 0,
-            note: input.note?.trim() || undefined,
-            id: makeId('debt'),
-          },
-        }),
-      repayDebt: (id, amount) => dispatch({ type: 'repayDebt', id, amount }),
-      deleteDebt: (id) => dispatch({ type: 'deleteDebt', id }),
-      updateSetting: (key, val) => dispatch({ type: 'updateSetting', key, value: val }),
+      /**
+       * Written to the database first, and the row it returns is what is kept
+       * — including the id, so the record on the phone and the record in the
+       * database are the same one. A debt that did not save is not shown as if
+       * it had, because the balance it moved would be a lie about real cash.
+       */
+      addDebt: async (input) => {
+        if (!token) return { ok: false, message: 'Sign in to record a debt' };
+
+        const res = await createServerDebt(token, {
+          person: input.person.trim(),
+          direction: input.direction,
+          principal: input.principal,
+          repaid: input.repaid,
+          date: input.date,
+          note: input.note?.trim(),
+          accountId: input.accountId,
+        });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'addDebt', debt: res.data.debt });
+        return { ok: true };
+      },
+
+      updateDebt: async (id, input) => {
+        if (!token) return { ok: false, message: 'Sign in to edit a debt' };
+
+        // A field left out of `input` is left out of the request body too:
+        // `JSON.stringify` drops undefined values, which is exactly what the
+        // server reads as "leave this one alone".
+        const res = await updateServerDebt(token, id, {
+          ...input,
+          person: input.person?.trim(),
+          note: input.note?.trim(),
+        });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'replaceDebt', debt: res.data.debt });
+        return { ok: true };
+      },
+
+      repayDebt: async (id, amount) => {
+        if (!token) return { ok: false, message: 'Sign in to record a repayment' };
+
+        const debt = state.debts.find((item) => item.id === id);
+        if (!debt) return { ok: false, message: 'That record no longer exists' };
+
+        // Sent as the new running total rather than as the payment, so a retry
+        // after a dropped connection cannot settle the same amount twice. The
+        // server caps it the same way, so both arrive at the same figure.
+        const repaid = Math.min(debt.repaid + amount, debt.principal);
+        const res = await updateServerDebt(token, id, { repaid });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'repayDebt', id, amount });
+        return { ok: true };
+      },
+
+      deleteDebt: async (id) => {
+        if (!token) return { ok: false, message: 'Sign in to remove a debt' };
+
+        const res = await deleteServerDebt(token, id);
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'deleteDebt', id });
+        return { ok: true };
+      },
+
+      refreshDebts,
+      refreshPreferences,
+      preferencesLoading,
+      preferencesError,
+      /**
+       * Optimistic: the switch is already under the finger, so waiting for the
+       * server would make it snap back and then forward. A refused write puts
+       * only this key back — applying the whole PATCH response would clobber a
+       * second toggle flipped while the first request was still in flight.
+       */
+      updateSetting: async (key, value) => {
+        if (!token) return { ok: false, message: 'Sign in to change preferences' };
+
+        const previous = state.settings[key];
+        if (previous === value) return { ok: true };
+
+        dispatch({ type: 'updateSetting', key, value });
+        const res = await updateServerPreferences(token, { [key]: value });
+        if (!res.ok) {
+          dispatch({ type: 'updateSetting', key, value: previous });
+          return { ok: false, message: res.message };
+        }
+        return { ok: true };
+      },
       updateProfile: (name, email) => dispatch({ type: 'updateProfile', name, email }),
       markNotificationsRead: () => dispatch({ type: 'readNotifications' }),
       clearNotifications: () => dispatch({ type: 'clearNotifications' }),
       resetData: () => {
         clearState();
         dispatch({ type: 'reset', state: createSeedState() });
-        // The reset is of this device's ledger; the accounts are the server's,
-        // so they are read back rather than replaced with the seed's.
+        // The reset is of this device's leftover local state; accounts, budgets,
+        // debts and the rest of the server's lists are read back rather than
+        // replaced with the seed's empties.
         refreshAccounts();
+        refreshBudgets();
+        refreshDebts();
+        refreshGoals();
+        refreshPreferences();
+        refreshTransactions();
       },
     };
   }, [
@@ -778,6 +1418,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     goalsLoading,
     goalsError,
     refreshGoals,
+    debtsLoading,
+    debtsError,
+    refreshDebts,
+    budgetsLoading,
+    budgetsError,
+    refreshBudgets,
+    expensesLoading,
+    expensesError,
+    refreshExpenses,
+    incomesLoading,
+    incomesError,
+    refreshTransactions,
+    preferencesLoading,
+    preferencesError,
+    refreshPreferences,
     token,
     refreshAccounts,
   ]);

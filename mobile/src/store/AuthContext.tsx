@@ -1,4 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Image } from 'expo-image';
 import {
   createContext,
   useCallback,
@@ -23,6 +24,24 @@ import { deleteSecret, readSecret, writeSecret } from '@/src/store/authStorage';
 const SESSION_KEY = 'cashflow.auth.session.v2';
 /** The password, kept only while biometric sign-in is switched on. */
 const BIOMETRIC_SECRET_KEY = 'cashflow.auth.biometric.v2';
+
+/**
+ * How long launch waits on the profile photos before giving up on them.
+ *
+ * A stalled picture must not hold the session back — that turns "loading" into
+ * its own kind of broken. Past this the account is handed over and initials
+ * stand in until the cache catches up.
+ */
+const PROFILE_IMAGE_WARM_MS = 4000;
+
+async function warmProfileImages(user: ApiUser): Promise<void> {
+  const urls = [user.avatar, user.cover].filter((url): url is string => !!url);
+  if (urls.length === 0) return;
+  await Promise.race([
+    Promise.all(urls.map((url) => Image.prefetch(url).catch(() => false))),
+    new Promise((resolve) => setTimeout(resolve, PROFILE_IMAGE_WARM_MS)),
+  ]);
+}
 
 export type AuthAccount = ApiUser;
 
@@ -132,6 +151,12 @@ type AuthContextValue = {
    * server — this is for handing the phone over or switching accounts.
    */
   forgetDevice: () => Promise<void>;
+  /**
+   * The account the server just confirmed — after a photo upload, or a name
+   * change. Pictures are warmed before this lands, so the header never draws
+   * a hole where a face should be.
+   */
+  replaceAccount: (user: ApiUser) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -187,7 +212,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const result = await fetchMe(stored.token);
       if (!mounted.current) return;
-      if (!result.ok && result.code !== 'network_error' && result.code !== 'timeout') {
+      if (result.ok) {
+        // Fresh signed photo links, and a name that may have changed elsewhere.
+        await warmProfileImages(result.data.user);
+        if (!mounted.current) return;
+        await persist({ ...stored, user: result.data.user });
+        return;
+      }
+      if (result.code !== 'network_error' && result.code !== 'timeout') {
         await deleteSecret(SESSION_KEY);
         if (!mounted.current) return;
         setSession(null);
@@ -198,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const adoptSession = useCallback(
     async (payload: SessionPayload) => {
+      await warmProfileImages(payload.user);
       await persist({
         token: payload.token,
         expiresAt: payload.expiresAt,
@@ -206,6 +239,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
     [persist]
+  );
+
+  const replaceAccount = useCallback(
+    async (user: ApiUser) => {
+      if (!session) return;
+      await warmProfileImages(user);
+      await persist({ ...session, user, email: user.email });
+    },
+    [persist, session]
   );
 
   const signIn = useCallback<AuthContextValue['signIn']>(
@@ -324,6 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       enableBiometrics,
       disableBiometrics,
       forgetDevice,
+      replaceAccount,
     }),
     [
       status,
@@ -338,6 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       enableBiometrics,
       disableBiometrics,
       forgetDevice,
+      replaceAccount,
     ]
   );
 

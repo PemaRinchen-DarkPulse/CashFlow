@@ -1,7 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,10 +22,12 @@ import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { CategoryIcon } from '@/src/components/CategoryIcon';
 import { ConfirmDialog } from '@/src/components/ConfirmDialog';
+import { EmptyState } from '@/src/components/EmptyState';
 import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { SettingRow } from '@/src/components/SettingRow';
+import { SkeletonRow } from '@/src/components/Skeleton';
 import { useToast } from '@/src/components/Toast';
 import { useAuth } from '@/src/store/AuthContext';
 import { useFinance } from '@/src/store/FinanceContext';
@@ -30,6 +35,10 @@ import { colors, font, radius, spacing } from '@/src/theme';
 import type { Account } from '@/src/types';
 import { formatDate } from '@/src/utils/date';
 import { formatCurrency, maskAmount } from '@/src/utils/format';
+import { pickAvatarImage, pickCoverImage } from '@/src/utils/goalImage';
+import { updateServerPhotos } from '@/src/api/profileApi';
+
+type PhotoSlot = 'avatar' | 'cover';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -41,31 +50,33 @@ export default function ProfileScreen() {
     totalBalance,
     streak,
     updateSetting,
-    updateProfile,
     resetData,
     unreadCount,
     addAccount,
     deleteAccount,
+    preferencesLoading,
+    preferencesError,
+    refreshPreferences,
   } = useFinance();
-  const { biometrics, biometricEnabled, enableBiometrics, disableBiometrics, signOut } = useAuth();
+  const { biometrics, biometricEnabled, enableBiometrics, disableBiometrics, signOut, token, replaceAccount } =
+    useAuth();
   const { showToast } = useToast();
   const { profile, accounts, transactions, settings, rewards } = state;
   const currency = profile.currency;
   const hidden = settings.hideBalance;
 
-  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [biometricPassword, setBiometricPassword] = useState('');
   const [enabling, setEnabling] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [draftName, setDraftName] = useState(profile.name);
-  const [draftEmail, setDraftEmail] = useState(profile.email);
   const [addingAccount, setAddingAccount] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountBalance, setNewAccountBalance] = useState('');
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [removingAccount, setRemovingAccount] = useState(false);
+  const [photoSheet, setPhotoSheet] = useState<PhotoSlot | null>(null);
+  const [uploading, setUploading] = useState<PhotoSlot | null>(null);
 
   // Arriving from "Add an account" elsewhere opens the sheet straight away. The
   // param is cleared so leaving and coming back does not reopen it.
@@ -83,17 +94,9 @@ export default function ProfileScreen() {
     [deletingAccount, transactions]
   );
 
-  const openEditor = () => {
-    setDraftName(profile.name);
-    setDraftEmail(profile.email);
-    setEditing(true);
-  };
-
-  const saveProfile = () => {
-    const name = draftName.trim();
-    if (!name) return;
-    updateProfile(name, draftEmail.trim());
-    setEditing(false);
+  const handleSetting = async (key: 'hideBalance' | 'budgetAlerts' | 'goalReminders' | 'weeklyDigest', value: boolean) => {
+    const result = await updateSetting(key, value);
+    if (!result.ok) showToast(result.message);
   };
 
   const handleSaveAccount = async () => {
@@ -162,53 +165,153 @@ export default function ProfileScreen() {
     showToast(`${biometrics.label} sign-in is on`, 'success');
   };
 
+  const openPhoto = (slot: PhotoSlot) => {
+    if (uploading) return;
+    const hasPhoto = slot === 'avatar' ? !!profile.avatar : !!profile.cover;
+    if (hasPhoto) {
+      setPhotoSheet(slot);
+      return;
+    }
+    void choosePhoto(slot);
+  };
+
+  const choosePhoto = async (slot: PhotoSlot) => {
+    setPhotoSheet(null);
+    const picked = slot === 'avatar' ? await pickAvatarImage() : await pickCoverImage();
+    if (!picked.ok) {
+      if (picked.reason === 'denied') {
+        showToast('CashFlow needs access to your photos to use one here.');
+      }
+      return;
+    }
+    if (!token) {
+      showToast('Sign in to update your photo');
+      return;
+    }
+
+    setUploading(slot);
+    const result = await updateServerPhotos(
+      token,
+      slot === 'avatar' ? { avatar: picked.image } : { cover: picked.image }
+    );
+    setUploading(null);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+    await replaceAccount(result.data.user);
+  };
+
+  const removePhoto = async (slot: PhotoSlot) => {
+    setPhotoSheet(null);
+    if (!token || uploading) return;
+
+    setUploading(slot);
+    const result = await updateServerPhotos(
+      token,
+      slot === 'avatar' ? { removeAvatar: true } : { removeCover: true }
+    );
+    setUploading(null);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+    await replaceAccount(result.data.user);
+  };
+
   const balanceLabel = formatCurrency(totalBalance, currency);
 
   return (
     <ScreenBackground>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
-        ]}>
-        <View>
-          <Card style={styles.identityCard}>
-            <View style={styles.identityRow}>
-              <Avatar name={profile.name} size={64} />
-              <View style={styles.identityText}>
-                <AppText variant="h1" numberOfLines={1}>
-                  {profile.name}
-                </AppText>
-                <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
-                  {profile.email}
-                </AppText>
-                <View style={styles.tier}>
-                  <Ionicons name="sparkles" size={11} color={colors.primary} />
-                  <AppText variant="caption" color={colors.primary}>
-                    {rewards.points.toLocaleString()} points
-                  </AppText>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit profile"
-                onPress={openEditor}
-                style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.7 }]}>
-                <Ionicons name="create-outline" size={17} color={colors.text} />
-              </Pressable>
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
+        <View style={styles.hero}>
+          <View style={[styles.heroWash, { paddingTop: insets.top + spacing.xs }]}>
+            <View style={styles.heroBackdrop} pointerEvents="none">
+              {profile.cover ? (
+                <>
+                  <Image
+                    source={{ uri: profile.cover }}
+                    style={styles.heroCover}
+                    contentFit="cover"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                  <LinearGradient
+                    colors={['rgba(5,9,11,0.5)', 'rgba(5,9,11,0.18)', 'rgba(5,9,11,0.55)'] as const}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </>
+              ) : (
+                <>
+                  <LinearGradient
+                    colors={['#1B5C3A', '#0C241C', colors.bg] as const}
+                    locations={[0, 0.58, 1] as const}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.heroBlob} />
+                </>
+              )}
             </View>
+            <View style={styles.heroBar}>
+              <View style={styles.sinceChip}>
+                <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+                <AppText variant="label" color={colors.textSecondary} numberOfLines={1}>
+                  Since {formatDate(profile.memberSince)}
+                </AppText>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={profile.cover ? 'Change cover photo' : 'Add cover photo'}
+              onPress={() => openPhoto('cover')}
+              disabled={!!uploading}
+              style={({ pressed }) => [styles.coverCamera, pressed && { opacity: 0.75 }]}>
+              {uploading === 'cover' ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <Ionicons name="camera" size={18} color={colors.text} />
+              )}
+            </Pressable>
+          </View>
 
-            <View style={styles.metaRow}>
-              <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
-              <AppText variant="caption" color={colors.textMuted}>
-                Member since {formatDate(profile.memberSince)}
+          <View style={styles.avatarWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={profile.avatar ? 'Change profile photo' : 'Add profile photo'}
+              onPress={() => openPhoto('avatar')}
+              disabled={!!uploading}
+              style={styles.avatarHalo}>
+              <Avatar name={profile.name} size={AVATAR_SIZE} ring={false} uri={profile.avatar} />
+              <View style={styles.avatarCamera}>
+                {uploading === 'avatar' ? (
+                  <ActivityIndicator size="small" color="#04140A" />
+                ) : (
+                  <Ionicons name="camera" size={14} color="#04140A" />
+                )}
+              </View>
+            </Pressable>
+          </View>
+
+          <View style={styles.identity}>
+            <AppText variant="h1" center numberOfLines={1} style={styles.identityName}>
+              {profile.name}
+            </AppText>
+            <AppText variant="body" color={colors.textMuted} center numberOfLines={1}>
+              {profile.email}
+            </AppText>
+            <View style={styles.tier}>
+              <Ionicons name="sparkles" size={12} color={colors.primary} />
+              <AppText variant="caption" color={colors.primary}>
+                {rewards.points.toLocaleString()} points
               </AppText>
             </View>
-          </Card>
+          </View>
         </View>
 
-        <View style={styles.statRow}>
+        <View style={styles.body}>
+          <View style={styles.statRow}>
           <View style={styles.statBlock}>
             <AppText tabular style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
               {hidden ? maskAmount(balanceLabel) : balanceLabel}
@@ -282,31 +385,68 @@ export default function ProfileScreen() {
         <View>
           <SectionHeader title="Preferences" />
           <Card style={styles.listCard}>
-            <SettingRow
-              icon="eye-off"
-              label="Hide balances"
-              description="Mask amounts across the app"
-              value={settings.hideBalance}
-              onValueChange={(value) => updateSetting('hideBalance', value)}
-            />
-            <View style={styles.divider} />
-            <SettingRow
-              icon="notifications"
-              label="Budget alerts"
-              description="Warn me at 80% of a category limit"
-              accent={colors.warning}
-              value={settings.budgetAlerts}
-              onValueChange={(value) => updateSetting('budgetAlerts', value)}
-            />
-            <View style={styles.divider} />
-            <SettingRow
-              icon="flag"
-              label="Goal reminders"
-              description="Nudge me to contribute each month"
-              accent={colors.info}
-              value={settings.goalReminders}
-              onValueChange={(value) => updateSetting('goalReminders', value)}
-            />
+            {/*
+              The four account-level toggles belong to the server. Showing the
+              seed defaults as if they were this user's, then flipping them when
+              the real set arrives, is the half-loaded card all over again —
+              skeleton, error, or the finished switches, never a guess.
+              Biometrics stay on this device (the hardware is here) so that row
+              is not gated with them.
+            */}
+            {preferencesLoading ? (
+              <>
+                <SkeletonRow lead={36} />
+                <SkeletonRow lead={36} />
+                <SkeletonRow lead={36} />
+                <SkeletonRow lead={36} />
+              </>
+            ) : preferencesError ? (
+              <EmptyState
+                compact
+                icon="cloud-offline-outline"
+                title="Can't load preferences"
+                body={`${preferencesError}. Your settings are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshPreferences}
+              />
+            ) : (
+              <>
+                <SettingRow
+                  icon="eye-off"
+                  label="Hide balances"
+                  description="Mask amounts across the app"
+                  value={settings.hideBalance}
+                  onValueChange={(value) => handleSetting('hideBalance', value)}
+                />
+                <View style={styles.divider} />
+                <SettingRow
+                  icon="notifications"
+                  label="Budget alerts"
+                  description="Warn me at 80% of a category limit"
+                  accent={colors.warning}
+                  value={settings.budgetAlerts}
+                  onValueChange={(value) => handleSetting('budgetAlerts', value)}
+                />
+                <View style={styles.divider} />
+                <SettingRow
+                  icon="flag"
+                  label="Goal reminders"
+                  description="Nudge me to contribute each month"
+                  accent={colors.info}
+                  value={settings.goalReminders}
+                  onValueChange={(value) => handleSetting('goalReminders', value)}
+                />
+                <View style={styles.divider} />
+                <SettingRow
+                  icon="mail"
+                  label="Weekly digest"
+                  description="A Sunday summary of the week"
+                  accent="#2DD4BF"
+                  value={settings.weeklyDigest}
+                  onValueChange={(value) => handleSetting('weeklyDigest', value)}
+                />
+              </>
+            )}
             <View style={styles.divider} />
             <SettingRow
               icon="finger-print"
@@ -319,15 +459,6 @@ export default function ProfileScreen() {
               accent="#A78BFA"
               value={biometricEnabled}
               onValueChange={handleBiometricToggle}
-            />
-            <View style={styles.divider} />
-            <SettingRow
-              icon="mail"
-              label="Weekly digest"
-              description="A Sunday summary of the week"
-              accent="#2DD4BF"
-              value={settings.weeklyDigest}
-              onValueChange={(value) => updateSetting('weeklyDigest', value)}
             />
           </Card>
         </View>
@@ -389,7 +520,37 @@ export default function ProfileScreen() {
             CashFlow · v1.0.0 · Data stays on this device
           </AppText>
         </View>
+        </View>
       </ScrollView>
+
+      <Modal
+        visible={photoSheet !== null}
+        transparent
+        animationType="none"
+        onRequestClose={() => setPhotoSheet(null)}>
+        <View style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPhotoSheet(null)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">
+              {photoSheet === 'cover' ? 'Cover photo' : 'Profile photo'}
+            </AppText>
+            <Button
+              label="Choose photo"
+              icon="image-outline"
+              onPress={() => photoSheet && choosePhoto(photoSheet)}
+              disabled={!!uploading}
+            />
+            <Button
+              label="Remove photo"
+              variant="danger"
+              icon="trash-outline"
+              onPress={() => photoSheet && removePhoto(photoSheet)}
+              disabled={!!uploading}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <ConfirmDialog
         visible={resetting}
@@ -419,53 +580,6 @@ export default function ProfileScreen() {
         onConfirm={handleDeleteAccount}
         onCancel={() => setDeletingAccount(null)}
       />
-
-      <Modal
-        visible={editing}
-        transparent
-        animationType="none"
-        onRequestClose={() => setEditing(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.sheetBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditing(false)} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
-            <View style={styles.grabber} />
-            <AppText variant="h2">Edit profile</AppText>
-
-            <View style={styles.field}>
-              <AppText variant="label" color={colors.textMuted}>
-                Name
-              </AppText>
-              <TextInput
-                value={draftName}
-                onChangeText={setDraftName}
-                placeholder="Your name"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.field}>
-              <AppText variant="label" color={colors.textMuted}>
-                Email
-              </AppText>
-              <TextInput
-                value={draftEmail}
-                onChangeText={setDraftEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Button label="Save changes" onPress={saveProfile} disabled={!draftName.trim()} />
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       <Modal
         visible={confirming}
@@ -569,43 +683,115 @@ export default function ProfileScreen() {
   );
 }
 
+const AVATAR_SIZE = 104;
+const AVATAR_HALO = 6;
+const AVATAR_OUTER = AVATAR_SIZE + AVATAR_HALO * 2;
+
 const styles = StyleSheet.create({
   content: {
+    gap: 0,
+  },
+  hero: {
+    marginBottom: spacing.sm,
+  },
+  heroWash: {
     paddingHorizontal: spacing.xl,
-    gap: spacing.xl,
+    paddingBottom: AVATAR_OUTER / 2 + spacing.xxxl,
   },
-  identityCard: {
-    gap: spacing.lg,
+  heroBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    zIndex: 0,
+    elevation: 0,
   },
-  identityRow: {
+  heroCover: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  heroBlob: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(29, 215, 91, 0.14)',
+    top: -70,
+    right: -50,
+  },
+  heroBar: {
+    zIndex: 2,
+    elevation: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
   },
-  identityText: {
-    flex: 1,
-    gap: 2,
+  sinceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 6,
+    height: 44,
+    maxWidth: '72%',
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(23, 36, 43, 0.72)',
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  coverCamera: {
+    position: 'absolute',
+    right: spacing.xl,
+    bottom: AVATAR_OUTER / 2 + spacing.xxl,
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    elevation: 8,
+  },
+  avatarWrap: {
+    alignItems: 'center',
+    marginTop: -AVATAR_OUTER / 2,
+  },
+  avatarHalo: {
+    padding: AVATAR_HALO,
+    borderRadius: AVATAR_OUTER / 2,
+    backgroundColor: colors.bg,
+  },
+  avatarCamera: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
+  identity: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    gap: 4,
+  },
+  identityName: {
+    fontSize: 28,
+    letterSpacing: -0.7,
   },
   tier: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 4,
+    marginTop: 6,
   },
-  editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  body: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.xl,
   },
   statRow: {
     flexDirection: 'row',

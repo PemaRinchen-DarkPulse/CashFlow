@@ -1,37 +1,36 @@
 import * as ImagePicker from 'expo-image-picker';
 
-import type { GoalImageUpload } from '@/src/api/goalsApi';
-
 /**
- * Square, because the goal card and the form preview both show the picture in a
- * square tile. Cropping to it up front means the image is never letterboxed or
- * silently cut off later.
+ * A picture chosen on the device, on its way to the server.
+ *
+ * The URI is the picker's own cache path. Nothing is copied into the app's
+ * storage — the file goes straight from here to the upload.
  */
-const ASPECT: [number, number] = [1, 1];
+export type ImageUpload = {
+  uri: string;
+  name: string;
+  /** MIME type, e.g. `image/jpeg`. The server checks the bytes as well. */
+  type: string;
+};
+
+export type PickResult =
+  | { ok: true; image: ImageUpload }
+  | { ok: false; reason: 'cancelled' | 'denied' | 'failed' };
 
 /**
  * Recompressed on the way out. A modern phone camera file is several megabytes,
  * the server refuses anything over eight, and none of that detail survives
- * being drawn at 42 points anyway.
+ * being drawn at avatar or cover size.
  */
 const QUALITY = 0.8;
 
-export type PickResult =
-  | { ok: true; image: GoalImageUpload }
-  | { ok: false; reason: 'cancelled' | 'denied' | 'failed' };
-
 /**
- * Open the photo library, let the user crop, and hand back the file.
- *
- * Nothing is copied into the app's own storage. The picture belongs to the goal
- * and the goal lives on the server, so the file goes straight from the picker
- * to the upload — a local copy would only be a second, staler original to keep
- * in step.
- *
- * The URI is the picker's own cache path, which stays valid for the life of
- * this screen; it is uploaded when the goal is saved, moments later.
+ * Open the photo library, let the user crop to `aspect`, and hand back the file.
  */
-export async function pickGoalImage(): Promise<PickResult> {
+export async function pickImage(options: {
+  aspect: [number, number];
+  namePrefix: string;
+}): Promise<PickResult> {
   try {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return { ok: false, reason: 'denied' };
@@ -39,7 +38,7 @@ export async function pickGoalImage(): Promise<PickResult> {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: ASPECT,
+      aspect: options.aspect,
       quality: QUALITY,
     });
     if (result.canceled || !result.assets?.length) return { ok: false, reason: 'cancelled' };
@@ -49,13 +48,25 @@ export async function pickGoalImage(): Promise<PickResult> {
       ok: true,
       image: {
         uri: asset.uri,
-        // Both are optional on the asset. The server re-derives the real type
-        // from the bytes, so these only have to be sane.
-        name: asset.fileName || `goal-${Date.now()}.jpg`,
+        name: asset.fileName || `${options.namePrefix}-${Date.now()}.jpg`,
         type: asset.mimeType || 'image/jpeg',
       },
     };
   } catch {
     return { ok: false, reason: 'failed' };
   }
+}
+
+/** Square, matching the goal card and the profile avatar. */
+export function pickGoalImage(): Promise<PickResult> {
+  return pickImage({ aspect: [1, 1], namePrefix: 'goal' });
+}
+
+export function pickAvatarImage(): Promise<PickResult> {
+  return pickImage({ aspect: [1, 1], namePrefix: 'avatar' });
+}
+
+/** Wide crop for the profile banner. */
+export function pickCoverImage(): Promise<PickResult> {
+  return pickImage({ aspect: [16, 9], namePrefix: 'cover' });
 }

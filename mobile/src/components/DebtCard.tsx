@@ -15,10 +15,11 @@ export type DebtCardProps = {
   debt: Debt;
   currency: string;
   onRepay?: () => void;
+  onEdit?: () => void;
   onDelete?: () => void;
 };
 
-export function DebtCard({ debt, currency, onRepay, onDelete }: DebtCardProps) {
+export function DebtCard({ debt, currency, onRepay, onEdit, onDelete }: DebtCardProps) {
   const outstanding = outstandingOf(debt);
   const settled = outstanding <= 0;
   const borrowed = debt.direction === 'borrowed';
@@ -66,6 +67,17 @@ export function DebtCard({ debt, currency, onRepay, onDelete }: DebtCardProps) {
         </AppText>
 
         <View style={styles.actions}>
+          {onEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Edit record for ${debt.person}`}
+              onPress={onEdit}
+              hitSlop={8}
+              style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
+              <Ionicons name="pencil-outline" size={15} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+
           {onDelete ? (
             <Pressable
               accessibilityRole="button"

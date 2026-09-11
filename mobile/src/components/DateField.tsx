@@ -17,8 +17,14 @@ import {
 } from '@/src/utils/date';
 
 export type DateFieldProps = {
-  value: Date;
+  value: Date | null;
   onChange: (date: Date) => void;
+  /** Shown when `value` is empty. */
+  placeholder?: string;
+  /** Clears the date, used when this field is a filter rather than a required day. */
+  onClear?: () => void;
+  /** Shrinks to the date text so it can sit in a screen header. */
+  compact?: boolean;
   /** Latest date that can be picked. Defaults to today. */
   maximumDate?: Date;
   minimumDate?: Date;
@@ -68,6 +74,9 @@ function addCalendarMonths(date: Date, amount: number): Date {
 export function DateField({
   value,
   onChange,
+  placeholder,
+  onClear,
+  compact = false,
   maximumDate,
   minimumDate = EARLIEST,
   accessibilityLabel = 'Change date',
@@ -75,7 +84,7 @@ export function DateField({
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   /** The month on screen, which moves independently of the chosen day. */
-  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value));
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ?? new Date()));
 
   const latest = useMemo(() => startOfDay(maximumDate ?? new Date()), [maximumDate]);
   const earliest = useMemo(() => startOfDay(minimumDate), [minimumDate]);
@@ -83,8 +92,8 @@ export function DateField({
 
   const show = () => {
     // Always open on the month of the current value, however far the user
-    // paged away the last time.
-    setViewMonth(startOfMonth(value));
+    // paged away the last time. An empty field opens on today.
+    setViewMonth(startOfMonth(value ?? today));
     setOpen(true);
   };
 
@@ -133,13 +142,23 @@ export function DateField({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        accessibilityValue={{ text: formatDayHeading(value.toISOString()) }}
+        accessibilityValue={{
+          text: value ? formatDayHeading(value.toISOString()) : (placeholder ?? 'No date'),
+        }}
         onPress={show}
-        style={({ pressed }) => [styles.field, pressed && styles.fieldPressed]}>
+        style={({ pressed }) => [
+          styles.field,
+          compact && styles.fieldCompact,
+          pressed && styles.fieldPressed,
+        ]}>
         <View style={styles.fieldIcon}>
           <Ionicons name="calendar-outline" size={16} color={colors.primary} />
         </View>
-        <AppText style={styles.fieldText}>{formatDayHeading(value.toISOString())}</AppText>
+        <AppText
+          style={[styles.fieldText, compact && styles.fieldTextCompact, !value && { color: colors.textMuted }]}
+          numberOfLines={1}>
+          {value ? formatDayHeading(value.toISOString()) : (placeholder ?? 'Pick a date')}
+        </AppText>
         <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
       </Pressable>
 
@@ -147,6 +166,7 @@ export function DateField({
         visible={open}
         transparent
         animationType="slide"
+        presentationStyle="overFullScreen"
         statusBarTranslucent
         onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
@@ -194,7 +214,7 @@ export function DateField({
               {cells.map((day, index) => {
                 if (!day) return <View key={`pad-${index}`} style={styles.cell} />;
 
-                const selected = isSameDay(day, value);
+                const selected = !!value && isSameDay(day, value);
                 const isToday = isSameDay(day, today);
                 const disabled = !inRange(day);
 
@@ -229,10 +249,25 @@ export function DateField({
               })}
             </View>
 
-            {quickDates.length ? (
+            {quickDates.length || onClear ? (
               <View style={styles.quickRow}>
+                {onClear ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: !value }}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      onClear();
+                      setOpen(false);
+                    }}
+                    style={[styles.quick, !value && styles.quickSelected]}>
+                    <AppText variant="label" color={!value ? colors.primary : colors.textSecondary}>
+                      Any time
+                    </AppText>
+                  </Pressable>
+                ) : null}
                 {quickDates.map((item) => {
-                  const selected = isSameDay(item.date, value);
+                  const selected = !!value && isSameDay(item.date, value);
                   return (
                     <Pressable
                       key={item.label}
@@ -248,7 +283,7 @@ export function DateField({
                     </Pressable>
                   );
                 })}
-                {!isSameMonth(viewMonth, value) ? (
+                {value && !isSameMonth(viewMonth, value) ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Back to the selected month"
@@ -314,6 +349,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryEdge,
     backgroundColor: colors.surfaceHigh,
   },
+  fieldCompact: {
+    minHeight: 44,
+    maxWidth: 168,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
   fieldIcon: {
     width: 30,
     height: 30,
@@ -328,6 +370,11 @@ const styles = StyleSheet.create({
     fontFamily: font.medium,
     fontSize: 15,
     color: colors.text,
+  },
+  fieldTextCompact: {
+    flexGrow: 0,
+    flexShrink: 1,
+    fontSize: 13.5,
   },
   backdrop: {
     flex: 1,

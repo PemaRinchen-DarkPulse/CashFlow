@@ -20,11 +20,12 @@ import { Card } from '@/src/components/Card';
 import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { DebtCard } from '@/src/components/DebtCard';
 import { EmptyState } from '@/src/components/EmptyState';
-import { SkeletonRow } from '@/src/components/Skeleton';
+import { Skeleton, SkeletonRow } from '@/src/components/Skeleton';
 import { GoalCard } from '@/src/components/GoalCard';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { Segmented } from '@/src/components/Segmented';
+import { useToast } from '@/src/components/Toast';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { Debt, Goal } from '@/src/types';
@@ -50,8 +51,12 @@ export default function PlanScreen() {
     goalsLoading,
     goalsError,
     refreshGoals,
+    debtsLoading,
+    debtsError,
+    refreshDebts,
   } =
     useFinance();
+  const { showToast } = useToast();
   const { goals, debts, profile, rewards, accounts } = state;
   const currency = profile.currency;
 
@@ -62,7 +67,9 @@ export default function PlanScreen() {
   const [contribution, setContribution] = useState('');
   const [repaying, setRepaying] = useState<Debt | null>(null);
   const [repayment, setRepayment] = useState('');
+  const [recordingRepayment, setRecordingRepayment] = useState(false);
   const [deletingDebt, setDeletingDebt] = useState<Debt | null>(null);
+  const [removingDebt, setRemovingDebt] = useState(false);
 
   // Deep links from Home carry the tab to open.
   useEffect(() => {
@@ -109,18 +116,37 @@ export default function PlanScreen() {
     setRepayment('');
   };
 
-  const submitRepayment = () => {
+  /**
+   * The repayment is recorded in the database before the sheet closes, and the
+   * sheet stays open if it is refused — the amount typed is not worth losing to
+   * a dropped connection, and a debt that still stands must not look settled.
+   */
+  const submitRepayment = async () => {
     const amount = Number(repayment);
-    if (!repaying || !Number.isFinite(amount) || amount <= 0) return;
-    repayDebt(repaying.id, amount);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    if (!repaying || recordingRepayment || !Number.isFinite(amount) || amount <= 0) return;
+
+    setRecordingRepayment(true);
+    const result = await repayDebt(repaying.id, amount);
+    setRecordingRepayment(false);
+
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+
+    showToast('Repayment recorded', 'success');
     closeRepayment();
   };
 
-  const handleDeleteDebt = () => {
-    if (!deletingDebt) return;
-    deleteDebt(deletingDebt.id);
+  const handleDeleteDebt = async () => {
+    if (!deletingDebt || removingDebt) return;
+
+    setRemovingDebt(true);
+    const result = await deleteDebt(deletingDebt.id);
+    setRemovingDebt(false);
     setDeletingDebt(null);
+
+    showToast(result.ok ? 'Record deleted' : result.message, result.ok ? 'success' : 'error');
   };
 
   const repayOutstanding = repaying ? outstandingOf(repaying) : 0;
@@ -158,6 +184,35 @@ export default function PlanScreen() {
         />
 
         {tab === 'debts' ? (
+          /*
+            The tab is one thing, not two: the totals are summed from the same
+            list the cards are drawn from, so releasing them separately would
+            put "you owe nothing" above a list still arriving. Either the whole
+            picture is ready, or none of it is shown.
+          */
+          debtsLoading ? (
+            <>
+              <Card style={styles.summarySkeleton}>
+                <Skeleton width="46%" height={12} />
+                <Skeleton width="64%" height={24} />
+                <Skeleton width="88%" height={12} />
+              </Card>
+              <Card>
+                <SkeletonRow lead={42} />
+                <SkeletonRow lead={42} />
+              </Card>
+            </>
+          ) : debtsError ? (
+            <Card>
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Can't load your debts"
+                body={`${debtsError}. Your records are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshDebts}
+              />
+            </Card>
+          ) : (
           <>
             <View>
               <Card style={styles.debtSummary}>
@@ -214,12 +269,15 @@ export default function PlanScreen() {
                 </Card>
               ) : (
                 <View style={styles.goalList}>
-                  {sortedDebts.map((debt, index) => (
+                  {sortedDebts.map((debt) => (
                     <DebtCard
                       key={debt.id}
                       debt={debt}
                       currency={currency}
                       onRepay={() => setRepaying(debt)}
+                      onEdit={() =>
+                        router.push({ pathname: '/edit-debt', params: { id: debt.id } })
+                      }
                       onDelete={() => setDeletingDebt(debt)}
                     />
                   ))}
@@ -227,6 +285,31 @@ export default function PlanScreen() {
               )}
             </View>
           </>
+          )
+        ) : goalsLoading ? (
+          /* Same rule on this side: the total is summed from the list, and the
+             cards lead with photos the context caches before releasing them. */
+          <>
+            <Card style={styles.summarySkeleton}>
+              <Skeleton width="52%" height={12} />
+              <Skeleton width="68%" height={28} />
+              <Skeleton width="74%" height={12} />
+            </Card>
+            <Card>
+              <SkeletonRow lead={42} />
+              <SkeletonRow lead={42} />
+            </Card>
+          </>
+        ) : goalsError ? (
+          <Card>
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Can't load your goals"
+              body={`${goalsError}. Your goals are safe — this device just cannot reach them right now.`}
+              actionLabel="Try again"
+              onAction={refreshGoals}
+            />
+          </Card>
         ) : (
           <>
             <View>
@@ -251,28 +334,7 @@ export default function PlanScreen() {
                 actionLabel="New goal"
                 onAction={() => router.push('/add-goal')}
               />
-              {/*
-                Goals are held in the database, so an empty list is one of three
-                different things and saying the wrong one is worse than saying
-                nothing: still on its way, unreachable — in which case the user
-                may well have goals — or genuinely none yet.
-              */}
-              {goalsLoading && goals.length === 0 ? (
-                <Card>
-                  <SkeletonRow lead={42} />
-                  <SkeletonRow lead={42} />
-                </Card>
-              ) : goalsError && goals.length === 0 ? (
-                <Card>
-                  <EmptyState
-                    icon="cloud-offline-outline"
-                    title="Can't load your goals"
-                    body={`${goalsError}. Your goals are safe — this device just cannot reach them right now.`}
-                    actionLabel="Try again"
-                    onAction={refreshGoals}
-                  />
-                </Card>
-              ) : goals.length === 0 ? (
+              {goals.length === 0 ? (
                 <Card>
                   <EmptyState
                     icon="flag-outline"
@@ -337,6 +399,7 @@ export default function PlanScreen() {
         }
         confirmLabel="Yes, delete it"
         cancelLabel="Keep it"
+        loading={removingDebt}
         onConfirm={handleDeleteDebt}
         onCancel={() => setDeletingDebt(null)}
       />
@@ -394,9 +457,16 @@ export default function PlanScreen() {
             </View>
 
             <Button
-              label={repaying?.direction === 'borrowed' ? 'Record payment' : 'Mark as received'}
+              label={
+                recordingRepayment
+                  ? 'Saving…'
+                  : repaying?.direction === 'borrowed'
+                    ? 'Record payment'
+                    : 'Mark as received'
+              }
               icon="checkmark-circle"
-              disabled={!repaymentValid}
+              loading={recordingRepayment}
+              disabled={!repaymentValid || recordingRepayment}
               onPress={submitRepayment}
             />
             {repayment && !repaymentValid ? (
@@ -528,6 +598,10 @@ const styles = StyleSheet.create({
   },
   goalList: {
     gap: spacing.md,
+  },
+  /** Stands in for a summary card: a label, a figure, and a line under it. */
+  summarySkeleton: {
+    gap: spacing.sm,
   },
   debtSummary: {
     gap: spacing.lg,

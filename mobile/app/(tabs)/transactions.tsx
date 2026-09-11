@@ -7,14 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/src/components/AppText';
 import { Card } from '@/src/components/Card';
 import { Chip } from '@/src/components/Chip';
+import { DateCategoryFilter } from '@/src/components/DateCategoryFilter';
 import { EmptyState } from '@/src/components/EmptyState';
+import { FilterButton } from '@/src/components/FilterButton';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
+import { Skeleton, SkeletonRow } from '@/src/components/Skeleton';
 import { TransactionRow } from '@/src/components/TransactionRow';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, shadow, spacing } from '@/src/theme';
 import type { Transaction } from '@/src/types';
-import { categoryOf, totalsOf } from '@/src/utils/analytics';
-import { formatDayHeading, startOfDay } from '@/src/utils/date';
+import { categoryOf, inRange, totalsOf } from '@/src/utils/analytics';
+import { endOfDay, formatDayHeading, startOfDay } from '@/src/utils/date';
 import { formatCurrency } from '@/src/utils/format';
 
 type Filter = 'all' | 'income' | 'expense';
@@ -22,18 +25,24 @@ type Filter = 'all' | 'income' | 'expense';
 export default function TransactionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state } = useFinance();
+  const { state, transactionsLoading, transactionsError, refreshTransactions } = useFinance();
   const { transactions, categories, profile, settings } = state;
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filtersActive = filterDate !== null || categoryId !== null;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const dayStart = filterDate ? startOfDay(filterDate) : null;
+    const dayEnd = filterDate ? endOfDay(filterDate) : null;
     return transactions.filter((item) => {
       if (filter !== 'all' && item.kind !== filter) return false;
       if (categoryId && item.categoryId !== categoryId) return false;
+      if (dayStart && dayEnd && !inRange(item, dayStart, dayEnd)) return false;
       if (!needle) return true;
       const category = categoryOf(categories, item.categoryId);
       return (
@@ -42,7 +51,7 @@ export default function TransactionsScreen() {
         (item.note?.toLowerCase().includes(needle) ?? false)
       );
     });
-  }, [transactions, categories, filter, categoryId, query]);
+  }, [transactions, categories, filter, categoryId, filterDate, query]);
 
   const sections = useMemo(() => {
     const groups = new Map<number, Transaction[]>();
@@ -63,22 +72,51 @@ export default function TransactionsScreen() {
 
   const totals = useMemo(() => totalsOf(filtered), [filtered]);
 
-  /** Categories that actually appear in the ledger, so the filter row stays useful. */
-  const usedCategories = useMemo(() => {
-    const ids = new Set(transactions.map((item) => item.categoryId));
-    return categories.filter((category) => ids.has(category.id));
-  }, [transactions, categories]);
+  const filterCaption = useMemo(() => {
+    const parts: string[] = [];
+    if (filterDate) parts.push(formatDayHeading(filterDate.toISOString()));
+    if (filter === 'income') parts.push('Income');
+    else if (filter === 'expense') parts.push('Expenses');
+    if (categoryId) {
+      const category = categories.find((item) => item.id === categoryId);
+      if (category) parts.push(category.name);
+    }
+    const count = `${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`;
+    return parts.length > 0 ? `${parts.join(' · ')} · ${count}` : count;
+  }, [filterDate, filter, categoryId, categories, filtered.length]);
+
+  const applyKind = (value: Filter) => {
+    setFilter(value);
+    if (categoryId) {
+      const category = categories.find((item) => item.id === categoryId);
+      if (category && value !== 'all' && category.kind !== value) setCategoryId(null);
+    }
+  };
+
+  const resetFilters = () => {
+    setFilterDate(null);
+    setCategoryId(null);
+  };
+
+  const titleBlock = (
+    <View style={styles.titleRow}>
+      <View style={styles.titleText}>
+        <AppText variant="h1">Activity</AppText>
+        <AppText variant="caption" color={colors.textMuted}>
+          {transactionsLoading ? 'Loading' : transactionsError ? 'Unavailable' : filterCaption}
+        </AppText>
+      </View>
+      <FilterButton
+        accessibilityLabel="Filter activity"
+        active={filtersActive}
+        onPress={() => setFilterOpen(true)}
+      />
+    </View>
+  );
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.titleRow}>
-        <View>
-          <AppText variant="h1">Activity</AppText>
-          <AppText variant="caption" color={colors.textMuted}>
-            {filtered.length} transaction{filtered.length === 1 ? '' : 's'}
-          </AppText>
-        </View>
-      </View>
+      {titleBlock}
 
       <Card style={styles.summary} padded={false}>
         <View style={styles.summaryItem}>
@@ -133,32 +171,56 @@ export default function TransactionsScreen() {
             key={value}
             label={value === 'all' ? 'All' : value === 'income' ? 'Income' : 'Expenses'}
             selected={filter === value}
-            onPress={() => setFilter(value)}
+            onPress={() => applyKind(value)}
           />
         ))}
       </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryStrip}
-        contentContainerStyle={styles.categoryRow}>
-        {usedCategories.map((item) => (
-          <Chip
-            key={item.id}
-            label={item.name}
-            icon={item.icon}
-            accent={item.color}
-            selected={categoryId === item.id}
-            onPress={() => setCategoryId(categoryId === item.id ? null : item.id)}
-          />
-        ))}
-      </ScrollView>
     </View>
   );
 
   return (
     <ScreenBackground>
+      {transactionsLoading ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl * 2 },
+          ]}>
+          <View style={styles.header}>
+            {titleBlock}
+            <Card style={styles.summarySkeleton}>
+              <Skeleton width="28%" height={12} />
+              <Skeleton width="40%" height={18} />
+            </Card>
+            <Card>
+              <SkeletonRow lead={42} />
+              <SkeletonRow lead={42} />
+              <SkeletonRow lead={42} />
+            </Card>
+          </View>
+        </ScrollView>
+      ) : transactionsError ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl * 2 },
+          ]}>
+          <View style={styles.header}>
+            {titleBlock}
+            <Card>
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Can't load activity"
+                body={`${transactionsError}. Your records are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshTransactions}
+              />
+            </Card>
+          </View>
+        </ScrollView>
+      ) : (
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -170,17 +232,30 @@ export default function TransactionsScreen() {
         ]}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          <EmptyState
-            icon="search-outline"
-            title="No matching transactions"
-            body="Try a different search term, or clear the filters to see everything."
-            actionLabel="Clear filters"
-            onAction={() => {
-              setQuery('');
-              setFilter('all');
-              setCategoryId(null);
-            }}
-          />
+          transactions.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="No activity yet"
+              body="Income and spending you log will show up here — only what is on your account, not sample data."
+              actionLabel="Add a transaction"
+              onAction={() =>
+                router.push({ pathname: '/add-transaction', params: { kind: 'expense' } })
+              }
+            />
+          ) : (
+            <EmptyState
+              icon="search-outline"
+              title="No matching transactions"
+              body="Try a different search term, or clear the filters to see everything."
+              actionLabel="Clear filters"
+              onAction={() => {
+                setQuery('');
+                setFilter('all');
+                setCategoryId(null);
+                setFilterDate(null);
+              }}
+            />
+          )
         }
         renderSectionHeader={({ section }) => (
           <AppText variant="label" color={colors.textMuted} style={styles.sectionHeading}>
@@ -205,6 +280,19 @@ export default function TransactionsScreen() {
             </View>
           );
         }}
+      />
+      )}
+
+      <DateCategoryFilter
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        date={filterDate}
+        onDateChange={setFilterDate}
+        onDateClear={() => setFilterDate(null)}
+        categoryId={categoryId}
+        onCategoryChange={setCategoryId}
+        categories={categories}
+        onReset={resetFilters}
       />
 
       <Pressable
@@ -235,6 +323,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  titleText: {
+    flex: 1,
+    minWidth: 0,
   },
   summary: {
     flexDirection: 'row',
@@ -257,6 +350,10 @@ const styles = StyleSheet.create({
     height: 26,
     backgroundColor: colors.border,
   },
+  summarySkeleton: {
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -278,13 +375,6 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  categoryStrip: {
-    marginHorizontal: -spacing.xl,
-  },
-  categoryRow: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
   },
   sectionHeading: {
     marginTop: spacing.lg,

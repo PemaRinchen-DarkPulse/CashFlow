@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -40,6 +40,22 @@ export default function EditBudgetScreen() {
   const existing = budgets.find((budget) => budget.categoryId === categoryId);
   const [limit, setLimit] = useState(existing ? String(existing.limit) : '');
   const [removing, setRemoving] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  /**
+   * The list is read back from the server, so a link opened at a cold start can
+   * land here before the cap it names has arrived — and the amount above was
+   * initialised from nothing. This fills it in once the row turns up, then
+   * leaves it alone so a later refresh cannot overwrite what is being typed.
+   */
+  const loadedCategory = useRef(existing ? existing.categoryId : null);
+
+  useEffect(() => {
+    if (!existing || loadedCategory.current === existing.categoryId) return;
+    loadedCategory.current = existing.categoryId;
+    setLimit(String(existing.limit));
+  }, [existing]);
 
   const status = useMemo(
     () =>
@@ -59,15 +75,30 @@ export default function EditBudgetScreen() {
     else router.replace('/analytics');
   };
 
-  const save = () => {
-    if (!valid || !categoryId) return;
-    setBudget(categoryId, parsed);
+  const save = async () => {
+    if (!valid || !categoryId || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    const result = await setBudget(categoryId, parsed);
+    setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.message);
+      return;
+    }
     close();
   };
 
-  const remove = () => {
-    if (!existing) return;
-    deleteBudget(existing.id);
+  const remove = async () => {
+    if (!existing || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    const result = await deleteBudget(existing.id);
+    setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.message);
+      setRemoving(false);
+      return;
+    }
     setRemoving(false);
     close();
   };
@@ -76,6 +107,8 @@ export default function EditBudgetScreen() {
     setCategoryId(id);
     const current = budgets.find((budget) => budget.categoryId === id);
     setLimit(current ? String(current.limit) : '');
+    loadedCategory.current = current ? id : null;
+    setSaveError(null);
   };
 
   return (
@@ -185,10 +218,11 @@ export default function EditBudgetScreen() {
 
           <View style={styles.actions}>
             <Button
-              label={existing ? 'Update budget' : 'Create budget'}
+              label={saving && !removing ? 'Saving…' : existing ? 'Update budget' : 'Create budget'}
               icon="checkmark-circle"
               onPress={save}
-              disabled={!valid}
+              loading={saving && !removing}
+              disabled={!valid || saving}
             />
             {existing ? (
               <Button
@@ -196,7 +230,13 @@ export default function EditBudgetScreen() {
                 variant="danger"
                 icon="trash-outline"
                 onPress={() => setRemoving(true)}
+                disabled={saving}
               />
+            ) : null}
+            {saveError ? (
+              <AppText variant="caption" color={colors.expense} center>
+                {saveError}
+              </AppText>
             ) : null}
           </View>
         </ScrollView>
@@ -210,7 +250,11 @@ export default function EditBudgetScreen() {
         confirmLabel="Yes, remove it"
         cancelLabel="Keep it"
         onConfirm={remove}
-        onCancel={() => setRemoving(false)}
+        onCancel={() => {
+          if (saving) return;
+          setRemoving(false);
+        }}
+        loading={saving && removing}
       />
     </ScreenBackground>
   );

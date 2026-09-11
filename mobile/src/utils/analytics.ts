@@ -135,6 +135,20 @@ export function outstandingOf(debt: Debt): number {
   return Math.max(debt.principal - debt.repaid, 0);
 }
 
+/**
+ * What a debt has done to the balance of the account it went through, once
+ * repayments are taken off: borrowed cash still held is money in hand, money
+ * still out on loan has left.
+ *
+ * Recording a debt applies this, deleting one takes it back off, and editing
+ * one does both — so a record that changes amount, direction or account lands
+ * the same way whichever of the three it was.
+ */
+export function cashEffectOf(debt: Debt): number {
+  const outstanding = outstandingOf(debt);
+  return debt.direction === 'borrowed' ? outstanding : -outstanding;
+}
+
 export type DebtSummary = {
   /** Still owed to friends. */
   owed: number;

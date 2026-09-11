@@ -17,6 +17,8 @@ export type SettingRowProps = {
   onPress?: () => void;
   trailingText?: string;
   destructive?: boolean;
+  /** The switch stays put and does not take presses. */
+  disabled?: boolean;
 };
 
 export function SettingRow({
@@ -29,6 +31,7 @@ export function SettingRow({
   onPress,
   trailingText,
   destructive,
+  disabled,
 }: SettingRowProps) {
   const isSwitch = typeof value === 'boolean' && !!onValueChange;
   const tint = destructive ? colors.expense : accent;
@@ -54,6 +57,7 @@ export function SettingRow({
         <Switch
           value={value}
           onValueChange={onValueChange}
+          disabled={disabled}
           trackColor={{ false: colors.surfaceHigh, true: colors.primary }}
           thumbColor={colors.text}
           ios_backgroundColor={colors.surfaceHigh}

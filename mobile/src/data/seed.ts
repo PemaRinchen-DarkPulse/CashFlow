@@ -179,76 +179,24 @@ export function createSeedState(now = new Date()): FinanceState {
     // device synced. A signed-in user with none is shown how to add their first.
     accounts: [],
     categories: ALL_CATEGORIES,
-    transactions: generateTransactions(now),
-    budgets: [
-      { id: 'bud-food', categoryId: 'food', limit: 320 },
-      { id: 'bud-groceries', categoryId: 'groceries', limit: 420 },
-      { id: 'bud-shopping', categoryId: 'shopping', limit: 350 },
-      { id: 'bud-transport', categoryId: 'transport', limit: 180 },
-      { id: 'bud-bills', categoryId: 'bills', limit: 220 },
-      { id: 'bud-fun', categoryId: 'fun', limit: 150 },
-      { id: 'bud-subs', categoryId: 'subs', limit: 45 },
-    ],
-    goals: [
-      {
-        id: 'goal-emergency',
-        name: 'Emergency Fund',
-        target: 10000,
-        saved: 6480,
-        deadline: new Date(now.getFullYear() + 1, 0, 31).toISOString(),
-        icon: 'shield-checkmark',
-        color: '#1DD75B',
-      },
-      {
-        id: 'goal-laptop',
-        name: 'New Laptop',
-        target: 2400,
-        saved: 940,
-        deadline: new Date(now.getFullYear(), now.getMonth() + 4, 1).toISOString(),
-        icon: 'laptop',
-        color: '#4DA3FF',
-      },
-      {
-        id: 'goal-trip',
-        name: 'Japan Trip',
-        target: 5000,
-        saved: 1725,
-        deadline: new Date(now.getFullYear() + 1, 3, 10).toISOString(),
-        icon: 'airplane',
-        color: '#A78BFA',
-      },
-    ],
-    debts: [
-      {
-        id: 'debt-1',
-        person: 'Sonam',
-        direction: 'borrowed',
-        principal: 3000,
-        repaid: 1200,
-        date: addDays(now, -24).toISOString(),
-        note: 'Covered my share of the trip booking',
-        accountId: 'acc-everyday',
-      },
-      {
-        id: 'debt-2',
-        person: 'Tashi',
-        direction: 'borrowed',
-        principal: 850,
-        repaid: 850,
-        date: addDays(now, -61).toISOString(),
-        note: 'Dinner when my card failed',
-        accountId: 'acc-everyday',
-      },
-      {
-        id: 'debt-3',
-        person: 'Karma',
-        direction: 'lent',
-        principal: 1500,
-        repaid: 500,
-        date: addDays(now, -12).toISOString(),
-        accountId: 'acc-everyday',
-      },
-    ],
+    // Empty: the ledger is whatever the server holds. Seeding paydays would put
+    // a stranger's salary on Activity until the fetch landed — or, worse, hand
+    // it to the database as if this user had earned it.
+    transactions: [],
+    // Empty for the same reason as accounts: budgets belong to the server, and
+    // seeding seven of them would put a stranger's monthly caps onto a real
+    // user's Analytics until the fetch landed — or hand them to the database
+    // as if this user had set them.
+    budgets: [],
+    // Empty for the same reason as accounts. A seeded goal also has no picture
+    // and no row behind it, so it would draw as a half-finished card and then
+    // vanish the moment the server answered with the real list.
+    goals: [],
+    // Empty for the same reason as accounts, and then some: debts belong to the
+    // server, and they are claims about real people. Seeding three of them
+    // would tell a real user that three strangers owe them money, and put those
+    // figures into the balance their own decisions rest on.
+    debts: [],
     notifications: [
       {
         id: 'ntf-1',
@@ -327,6 +275,8 @@ export function createSeedState(now = new Date()): FinanceState {
     },
     settings: {
       // Amounts start masked; the eye on the balance card reveals them.
+      // These are the same defaults the server hands a brand-new account, and
+      // they are replaced the moment that account's real preferences arrive.
       hideBalance: true,
       budgetAlerts: true,
       goalReminders: true,

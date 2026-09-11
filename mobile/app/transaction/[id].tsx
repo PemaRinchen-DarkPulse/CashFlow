@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/src/components/ConfirmDialog';
 import { EmptyState } from '@/src/components/EmptyState';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
+import { useToast } from '@/src/components/Toast';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, spacing } from '@/src/theme';
 import type { IconName } from '@/src/types';
@@ -24,8 +25,10 @@ export default function TransactionDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state, deleteTransaction } = useFinance();
+  const { showToast } = useToast();
   // Declared before the not-found early return so hook order stays stable.
   const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const transaction = state.transactions.find((item) => item.id === id);
 
@@ -55,8 +58,15 @@ export default function TransactionDetailScreen() {
   const account = state.accounts.find((item) => item.id === transaction.accountId);
   const isIncome = transaction.kind === 'income';
 
-  const handleDelete = () => {
-    deleteTransaction(transaction.id);
+  const handleDelete = async () => {
+    if (removing) return;
+    setRemoving(true);
+    const result = await deleteTransaction(transaction.id);
+    setRemoving(false);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
     setConfirming(false);
     goBack();
   };
@@ -158,6 +168,7 @@ export default function TransactionDetailScreen() {
         cancelLabel="Keep it"
         onConfirm={handleDelete}
         onCancel={() => setConfirming(false)}
+        loading={removing}
       />
     </ScreenBackground>
   );

@@ -30,7 +30,7 @@ export function EmptyState({
   return (
     <View style={[styles.root, compact && styles.rootCompact]}>
       <View style={[styles.iconWrap, compact && styles.iconWrapCompact]}>
-        <Ionicons name={icon} size={compact ? 22 : 26} color={colors.primary} />
+        <Ionicons name={icon} size={compact ? 22 : 24} color={colors.primary} />
       </View>
       <AppText variant="h3" center>
         {title}
@@ -55,26 +55,26 @@ export function EmptyState({
 const styles = StyleSheet.create({
   root: {
     alignItems: 'center',
-    paddingVertical: spacing.xxxl,
+    paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.xl,
   },
   rootCompact: {
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.lg,
   },
   iconWrap: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   iconWrapCompact: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginBottom: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginBottom: spacing.sm,
   },
   body: {
     marginTop: spacing.sm,
@@ -82,11 +82,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   action: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
     paddingHorizontal: spacing.xxxl,
   },
   actionCompact: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.xxl,
   },
 });

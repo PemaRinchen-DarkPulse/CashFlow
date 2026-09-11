@@ -97,6 +97,10 @@ export type Profile = {
   email: string;
   memberSince: string;
   currency: string;
+  /** Presigned URL for the round photo. Not persisted — signed per read. */
+  avatar?: string;
+  /** Presigned URL for the banner. Not persisted — signed per read. */
+  cover?: string;
 };
 
 /**

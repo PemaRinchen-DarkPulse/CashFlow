@@ -11,9 +11,12 @@ import { CategoryIcon, withAlpha } from '@/src/components/CategoryIcon';
 import { Chip } from '@/src/components/Chip';
 import { DonutChart } from '@/src/components/charts/DonutChart';
 import { EmptyState } from '@/src/components/EmptyState';
+import { DateCategoryFilter } from '@/src/components/DateCategoryFilter';
+import { FilterButton } from '@/src/components/FilterButton';
 import { ProgressBar } from '@/src/components/ProgressBar';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
+import { SkeletonRow } from '@/src/components/Skeleton';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import {
@@ -26,7 +29,16 @@ import {
   monthTransactions,
   totalsOf,
 } from '@/src/utils/analytics';
-import { addDays, addMonths, monthLabel, startOfDay, startOfMonth, startOfWeek } from '@/src/utils/date';
+import {
+  addDays,
+  addMonths,
+  endOfDay,
+  formatDayHeading,
+  monthLabel,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from '@/src/utils/date';
 import { formatCurrency, formatPercent } from '@/src/utils/format';
 
 type Period = 'week' | 'month' | 'year';
@@ -46,53 +58,85 @@ const TONE_ICON = {
 export default function AnalyticsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state } = useFinance();
+  const { state, budgetsLoading, budgetsError, refreshBudgets } = useFinance();
   const { transactions, categories, budgets, profile } = state;
   const currency = profile.currency;
 
   const [period, setPeriod] = useState<Period>('month');
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filtersActive = filterDate !== null || categoryId !== null;
 
   const data = useMemo(() => {
     const now = new Date();
+    const byCategory = (list: typeof transactions) =>
+      categoryId ? list.filter((item) => item.categoryId === categoryId) : list;
 
-    if (period === 'week') {
-      const from = startOfWeek(now);
-      const scoped = filterRange(transactions, from, addDays(startOfDay(now), 1));
-      const previous = filterRange(transactions, addDays(from, -7), from);
+    const category = categoryId ? categories.find((item) => item.id === categoryId) : null;
+    const withCategory = (label: string) => (category ? `${category.name} · ${label}` : label);
+
+    if (filterDate) {
+      const from = startOfDay(filterDate);
+      const to = endOfDay(filterDate);
+      const scoped = byCategory(filterRange(transactions, from, to));
+      const prev = addDays(from, -1);
+      const previous = byCategory(filterRange(transactions, prev, endOfDay(prev)));
       return {
-        label: 'This week',
+        label: withCategory(formatDayHeading(from.toISOString())),
         scoped,
         totals: totalsOf(scoped),
         previousTotals: totalsOf(previous),
+        vsLabel: 'vs previous day',
+        days: 1,
+      };
+    }
+
+    if (period === 'week') {
+      const from = startOfWeek(now);
+      const scoped = byCategory(filterRange(transactions, from, addDays(startOfDay(now), 1)));
+      const previous = byCategory(filterRange(transactions, addDays(from, -7), from));
+      return {
+        label: withCategory('This week'),
+        scoped,
+        totals: totalsOf(scoped),
+        previousTotals: totalsOf(previous),
+        vsLabel: 'vs previous',
+        days: Math.max(((now.getTime() - from.getTime()) / 86_400_000) | 0, 1),
       };
     }
 
     if (period === 'year') {
       const from = new Date(now.getFullYear(), 0, 1);
-      const scoped = filterRange(transactions, from, now);
-      const previous = filterRange(
-        transactions,
-        new Date(now.getFullYear() - 1, 0, 1),
-        new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+      const scoped = byCategory(filterRange(transactions, from, now));
+      const previous = byCategory(
+        filterRange(
+          transactions,
+          new Date(now.getFullYear() - 1, 0, 1),
+          new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+        )
       );
       return {
-        label: String(now.getFullYear()),
+        label: withCategory(String(now.getFullYear())),
         scoped,
         totals: totalsOf(scoped),
         previousTotals: totalsOf(previous),
+        vsLabel: 'vs previous',
+        days: Math.max(((now.getTime() - from.getTime()) / 86_400_000) | 0, 1),
       };
     }
 
-    const scoped = monthTransactions(transactions, now);
-    // Same window last month, so a part-way month is not judged against a full one.
-    const previous = monthToDate(transactions, addMonths(startOfMonth(now), -1), now);
+    const scoped = byCategory(monthTransactions(transactions, now));
+    const previous = byCategory(monthToDate(transactions, addMonths(startOfMonth(now), -1), now));
     return {
-      label: `${monthLabel(now)} ${now.getFullYear()}`,
+      label: withCategory(`${monthLabel(now)} ${now.getFullYear()}`),
       scoped,
       totals: totalsOf(scoped),
       previousTotals: totalsOf(previous),
+      vsLabel: 'vs same point last month',
+      days: now.getDate(),
     };
-  }, [transactions, period]);
+  }, [transactions, categories, period, filterDate, categoryId]);
 
   const breakdown = useMemo(
     () => breakdownByCategory(data.scoped, categories),
@@ -126,21 +170,10 @@ export default function AnalyticsScreen() {
 
   const spendChange = changePercent(data.totals.expense, data.previousTotals.expense);
   const steadySpend = Math.abs(spendChange) < 1;
+  const spendImproved = spendChange < 0;
   const savingsRate =
     data.totals.income === 0 ? 0 : Math.max((data.totals.net / data.totals.income) * 100, 0);
-  const dailyAverage = useMemo(() => {
-    const now = new Date();
-    const days =
-      period === 'week'
-        ? Math.max(((now.getTime() - startOfWeek(now).getTime()) / 86_400_000) | 0, 1)
-        : period === 'month'
-          ? now.getDate()
-          : Math.max(
-              ((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000) | 0,
-              1
-            );
-    return data.totals.expense / days;
-  }, [data.totals.expense, period]);
+  const dailyAverage = data.totals.expense / data.days;
 
   return (
     <ScreenBackground>
@@ -150,11 +183,18 @@ export default function AnalyticsScreen() {
           styles.content,
           { paddingTop: insets.top + spacing.md, paddingBottom: spacing.xxxl },
         ]}>
-        <View>
-          <AppText variant="h1">Analytics</AppText>
-          <AppText variant="caption" color={colors.textMuted}>
-            {data.label}
-          </AppText>
+        <View style={styles.titleRow}>
+          <View style={styles.titleText}>
+            <AppText variant="h1">Analytics</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              {data.label}
+            </AppText>
+          </View>
+          <FilterButton
+            accessibilityLabel="Filter analytics"
+            active={filtersActive}
+            onPress={() => setFilterOpen(true)}
+          />
         </View>
 
         <View style={styles.periodRow}>
@@ -162,8 +202,11 @@ export default function AnalyticsScreen() {
             <Chip
               key={value}
               label={value === 'week' ? 'Week' : value === 'month' ? 'Month' : 'Year'}
-              selected={period === value}
-              onPress={() => setPeriod(value)}
+              selected={!filterDate && period === value}
+              onPress={() => {
+                setFilterDate(null);
+                setPeriod(value);
+              }}
             />
           ))}
         </View>
@@ -185,7 +228,7 @@ export default function AnalyticsScreen() {
                     <Ionicons
                       name={spendChange < 0 ? 'arrow-down' : 'arrow-up'}
                       size={12}
-                      color={spendChange < 0 ? colors.primary : colors.expense}
+                      color={spendImproved ? colors.primary : colors.expense}
                     />
                   )}
                   <AppText
@@ -193,14 +236,14 @@ export default function AnalyticsScreen() {
                     color={
                       steadySpend
                         ? colors.textSecondary
-                        : spendChange < 0
+                        : spendImproved
                           ? colors.primary
                           : colors.expense
                     }>
                     {steadySpend ? 'About level' : formatPercent(Math.abs(spendChange), 0)}
                   </AppText>
                   <AppText variant="caption" color={colors.textMuted}>
-                    {period === 'month' ? 'vs same point last month' : 'vs previous'}
+                    {data.vsLabel}
                   </AppText>
                 </View>
             </View>
@@ -268,7 +311,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 <View style={styles.breakdownList}>
-                  {breakdown.map((item, index) => (
+                  {breakdown.map((item) => (
                     <View key={item.category.id} style={styles.breakdownRow}>
                       <CategoryIcon
                         icon={item.category.icon}
@@ -310,7 +353,23 @@ export default function AnalyticsScreen() {
             actionLabel="Add"
             onAction={() => router.push('/edit-budget')}
           />
-          {budgetList.length === 0 ? (
+          {budgetsLoading ? (
+            <Card style={styles.listCard}>
+              <SkeletonRow lead={42} />
+              <SkeletonRow lead={42} />
+              <SkeletonRow lead={42} />
+            </Card>
+          ) : budgetsError && budgetList.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Can't load budgets"
+                body={`${budgetsError}. Your limits are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshBudgets}
+              />
+            </Card>
+          ) : budgetList.length === 0 ? (
             <Card>
               <EmptyState
                 icon="pie-chart-outline"
@@ -408,6 +467,21 @@ export default function AnalyticsScreen() {
           <Ionicons name="arrow-forward" size={15} color={colors.primary} />
         </Pressable>
       </ScrollView>
+
+      <DateCategoryFilter
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        date={filterDate}
+        onDateChange={setFilterDate}
+        onDateClear={() => setFilterDate(null)}
+        categoryId={categoryId}
+        onCategoryChange={setCategoryId}
+        categories={categories}
+        onReset={() => {
+          setFilterDate(null);
+          setCategoryId(null);
+        }}
+      />
     </ScreenBackground>
   );
 }
@@ -416,6 +490,16 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.xl,
     gap: spacing.xl,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  titleText: {
+    flex: 1,
+    minWidth: 0,
   },
   periodRow: {
     flexDirection: 'row',

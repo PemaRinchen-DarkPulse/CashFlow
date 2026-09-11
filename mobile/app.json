@@ -34,7 +34,7 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -62,7 +62,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow CashFlow to use your photos so a savings goal can show the thing you are saving for.",
+          "photosPermission": "Allow CashFlow to use your photos for your profile and for pictures of what you are saving for.",
           "cameraPermission": false,
           "microphonePermission": false
         }

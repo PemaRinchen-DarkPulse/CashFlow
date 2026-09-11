@@ -1,7 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -17,14 +16,16 @@ import { AppText } from '@/src/components/AppText';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { DateField } from '@/src/components/DateField';
+import { EmptyState } from '@/src/components/EmptyState';
 import { NoAccountsNotice } from '@/src/components/NoAccountsNotice';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { ScreenHeader } from '@/src/components/ScreenHeader';
 import { Segmented } from '@/src/components/Segmented';
-import { SuccessOverlay } from '@/src/components/SuccessOverlay';
+import { SkeletonRow } from '@/src/components/Skeleton';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import type { Debt } from '@/src/types';
+import { cashEffectOf } from '@/src/utils/analytics';
 import { isSameDay } from '@/src/utils/date';
 import { formatCurrency, sanitizeAmountInput } from '@/src/utils/format';
 
@@ -39,66 +40,120 @@ function stampTime(day: Date): Date {
   return date;
 }
 
-export default function AddDebtScreen() {
+export default function EditDebtScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ direction?: string }>();
-  const { state, addDebt, totalBalance } = useFinance();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const { state, updateDebt, totalBalance, debtsLoading } = useFinance();
   const { accounts, profile, debts } = state;
   const currency = profile.currency;
 
-  const [direction, setDirection] = useState<Direction>(
-    params.direction === 'lent' ? 'lent' : 'borrowed'
-  );
-  const [person, setPerson] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [date, setDate] = useState(() => new Date());
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
-  const [saved, setSaved] = useState<{ person: string; amount: number } | null>(null);
+  const debt = debts.find((item) => item.id === params.id);
+
+  const [direction, setDirection] = useState<Direction>(debt?.direction ?? 'borrowed');
+  const [person, setPerson] = useState(debt?.person ?? '');
+  const [amount, setAmount] = useState(debt ? String(debt.principal) : '');
+  const [note, setNote] = useState(debt?.note ?? '');
+  const [date, setDate] = useState(() => (debt ? new Date(debt.date) : new Date()));
+  const [accountId, setAccountId] = useState(debt?.accountId ?? accounts[0]?.id ?? '');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // The list is read back from the server, so it can arrive after this screen is
-  // already open — and an account can be removed from the profile while it is.
+  /**
+   * Which record the form is currently showing. The debt list is read back from
+   * the server, so a link opened at a cold start can land here before the
+   * record it names has arrived — and the fields above were initialised from
+   * nothing. This fills them in once it turns up, and then leaves them alone so
+   * a later refresh cannot overwrite what is being typed.
+   */
+  const loadedId = useRef(debt?.id);
+
+  useEffect(() => {
+    if (!debt || loadedId.current === debt.id) return;
+    loadedId.current = debt.id;
+    setDirection(debt.direction);
+    setPerson(debt.person);
+    setAmount(String(debt.principal));
+    setNote(debt.note ?? '');
+    setDate(new Date(debt.date));
+    setAccountId(debt.accountId);
+  }, [debt]);
+
+  // An account can be removed from the profile while this screen is open, and
+  // the one this debt was filed against may already be gone.
   useEffect(() => {
     if (accounts.some((account) => account.id === accountId)) return;
     setAccountId(accounts[0]?.id ?? '');
   }, [accounts, accountId]);
-
-  /** People already on record, so repeat lenders are one tap away. */
-  const knownPeople = useMemo(
-    () => [...new Set(debts.map((debt) => debt.person))].slice(0, 6),
-    [debts]
-  );
-
-  const parsed = Number(amount);
-  const borrowed = direction === 'borrowed';
-  const amountValid = Number.isFinite(parsed) && parsed > 0;
-  // You cannot lend out more cash than you actually hold.
-  const withinBalance = borrowed || parsed <= totalBalance;
-  // Borrowed cash has to land somewhere and lent cash has to come from
-  // somewhere, so both need an account to move it through.
-  const valid =
-    person.trim().length > 0 && amountValid && withinBalance && accounts.length > 0;
 
   const close = () => {
     if (router.canGoBack()) router.back();
     else router.replace({ pathname: '/goals', params: { tab: 'debts' } });
   };
 
+  if (!debt) {
+    return (
+      <ScreenBackground>
+        <View style={{ paddingTop: insets.top + spacing.md }}>
+          <ScreenHeader title="Edit record" onBack={close} />
+        </View>
+        <View style={styles.content}>
+          <Card>
+            {/* Still on its way and genuinely gone look identical on screen,
+                and telling someone their record does not exist when it is only
+                a slow request is the worse of the two mistakes to make. */}
+            {debtsLoading ? (
+              <SkeletonRow lead={42} />
+            ) : (
+              <EmptyState
+                icon="help-circle-outline"
+                title="Record not found"
+                body="This debt is no longer on your list. It may have been deleted from another device."
+                actionLabel="Back to debts"
+                onAction={close}
+              />
+            )}
+          </Card>
+        </View>
+      </ScreenBackground>
+    );
+  }
+
+  const borrowed = direction === 'borrowed';
+  const parsed = Number(amount);
+  const amountValid = Number.isFinite(parsed) && parsed > 0;
+
   /**
-   * The record goes to the database, so the screen stays open until that lands.
-   * Confirming first would leave a failed save with nowhere to report it, and
-   * the user believing a friend owes them money that nothing is tracking.
+   * The amount cannot be dropped below what has already been settled. The
+   * server would cap the repayment to fit instead, which quietly marks the
+   * debt closed — so it is refused here where it can be explained.
    */
+  const coversRepaid = parsed >= debt.repaid;
+
+  /**
+   * What the edit does to the cash on hand. Only the change matters: the debt
+   * as it stands is already in the balance, so raising a loan by a hundred
+   * needs a hundred available rather than the whole new figure.
+   */
+  const delta = amountValid
+    ? cashEffectOf({ ...debt, direction, principal: parsed }) - cashEffectOf(debt)
+    : 0;
+  const withinBalance = totalBalance + delta >= 0;
+
+  const valid =
+    person.trim().length > 0 &&
+    amountValid &&
+    coversRepaid &&
+    withinBalance &&
+    accounts.length > 0;
+
   const save = async () => {
     if (!valid || saving) return;
 
     setSaving(true);
     setSaveError(null);
 
-    const res = await addDebt({
+    const res = await updateDebt(debt.id, {
       person,
       direction,
       principal: parsed,
@@ -108,10 +163,8 @@ export default function AddDebtScreen() {
     });
 
     setSaving(false);
-    if (!res.ok) return setSaveError(res.message);
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setSaved({ person: person.trim(), amount: parsed });
+    if (res.ok) return close();
+    setSaveError(res.message);
   };
 
   return (
@@ -121,7 +174,7 @@ export default function AddDebtScreen() {
         style={styles.flex}>
         <View style={{ paddingTop: insets.top + spacing.md }}>
           <ScreenHeader
-            title={borrowed ? 'Borrow money' : 'Lend money'}
+            title="Edit record"
             subtitle={borrowed ? 'Money a friend gave you' : 'Money you gave a friend'}
             onBack={close}
           />
@@ -133,7 +186,7 @@ export default function AddDebtScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxxl }]}>
           <NoAccountsNotice
             title="Add an account first"
-            body="Borrowed money has to land in an account, and lent money has to come out of one. You do not have an account yet."
+            body="A debt has to be filed against an account, and you do not have one."
           />
 
           <Segmented
@@ -158,13 +211,12 @@ export default function AddDebtScreen() {
                 placeholder="0.00"
                 placeholderTextColor={colors.textMuted}
                 style={styles.amountInput}
-                autoFocus
               />
             </View>
             <AppText variant="caption" color={colors.textMuted} center>
-              {borrowed
-                ? 'Added to your balance — recorded as a debt, not income.'
-                : 'Taken from your balance — recorded as money owed to you.'}
+              {debt.repaid > 0
+                ? `${formatCurrency(debt.repaid, currency)} already settled — repayments are kept as they are.`
+                : 'Nothing settled on this record yet.'}
             </AppText>
           </Card>
 
@@ -179,36 +231,13 @@ export default function AddDebtScreen() {
               placeholderTextColor={colors.textMuted}
               style={styles.input}
             />
-            {knownPeople.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.peopleRow}>
-                {knownPeople.map((name) => (
-                  <Pressable
-                    key={name}
-                    accessibilityRole="button"
-                    onPress={() => setPerson(name)}
-                    style={({ pressed }) => [styles.person, pressed && { opacity: 0.7 }]}>
-                    <Ionicons name="person" size={13} color={colors.textMuted} />
-                    <AppText variant="label" color={colors.textSecondary}>
-                      {name}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
           </View>
 
           <View>
             <AppText variant="label" color={colors.textMuted} style={styles.label}>
               When
             </AppText>
-            <DateField
-              value={date}
-              onChange={setDate}
-              accessibilityLabel="Date the money moved"
-            />
+            <DateField value={date} onChange={setDate} accessibilityLabel="Date the money moved" />
           </View>
 
           {accounts.length > 1 ? (
@@ -256,18 +285,23 @@ export default function AddDebtScreen() {
           </View>
 
           <Button
-            label={
-              saving ? 'Saving…' : borrowed ? 'Record what I borrowed' : 'Record what I lent'
-            }
-            icon="people"
+            label={saving ? 'Saving…' : 'Save changes'}
+            icon="checkmark-circle"
             onPress={save}
             loading={saving}
             disabled={!valid || saving}
           />
 
-          {amountValid && !withinBalance ? (
+          {amountValid && !coversRepaid ? (
             <AppText variant="caption" color={colors.expense} center>
-              You only have {formatCurrency(totalBalance, currency)} available to lend.
+              {formatCurrency(debt.repaid, currency)} has already been settled, so the amount cannot
+              be lower than that.
+            </AppText>
+          ) : null}
+          {amountValid && coversRepaid && !withinBalance ? (
+            <AppText variant="caption" color={colors.expense} center>
+              That change needs {formatCurrency(-delta, currency)} and you only have{' '}
+              {formatCurrency(totalBalance, currency)} available.
             </AppText>
           ) : null}
           {saveError ? (
@@ -277,20 +311,6 @@ export default function AddDebtScreen() {
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <SuccessOverlay
-        visible={!!saved}
-        title={borrowed ? 'Debt Recorded!' : 'Loan Recorded!'}
-        message={
-          saved
-            ? borrowed
-              ? `You owe ${saved.person} ${formatCurrency(saved.amount, currency)}. It is tracked separately from your spending.`
-              : `${saved.person} owes you ${formatCurrency(saved.amount, currency)}.`
-            : ''
-        }
-        primaryLabel="Done"
-        onPrimary={close}
-      />
     </ScreenBackground>
   );
 }
@@ -343,22 +363,6 @@ const styles = StyleSheet.create({
   noteInput: {
     minHeight: 72,
     textAlignVertical: 'top',
-  },
-  peopleRow: {
-    gap: spacing.sm,
-    paddingTop: spacing.md,
-    paddingRight: spacing.xl,
-  },
-  person: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 34,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   accountRow: {
     flexDirection: 'row',

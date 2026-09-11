@@ -17,7 +17,9 @@ import { QuickAction } from '@/src/components/QuickAction';
 import { ScreenBackground } from '@/src/components/ScreenBackground';
 import { SectionHeader } from '@/src/components/SectionHeader';
 import { StatCard } from '@/src/components/StatCard';
+import { SkeletonRow } from '@/src/components/Skeleton';
 import { TransactionRow } from '@/src/components/TransactionRow';
+import { useToast } from '@/src/components/Toast';
 import { useFinance } from '@/src/store/FinanceContext';
 import { colors, font, radius, spacing } from '@/src/theme';
 import {
@@ -46,7 +48,18 @@ export default function HomeScreen() {
     monthlyIncomeLoading,
     refreshMonthlyIncome,
     accountsLoading,
+    preferencesLoading,
+    expensesLoading,
+    expensesError,
+    refreshExpenses,
+    transactionsLoading,
+    transactionsError,
+    refreshTransactions,
+    budgetsLoading,
+    budgetsError,
+    refreshBudgets,
   } = useFinance();
+  const { showToast } = useToast();
   const { profile, transactions, categories, budgets, goals, settings, rewards } = state;
   const currency = profile.currency;
   const hidden = settings.hideBalance;
@@ -95,12 +108,14 @@ export default function HomeScreen() {
       : null;
 
   const spentAction =
-    summary.totals.expense === 0
-      ? {
-          label: 'Log your first expense',
-          onPress: () => router.push('/add-transaction?kind=expense'),
-        }
-      : null;
+    expensesLoading
+      ? null
+      : summary.totals.expense === 0
+        ? {
+            label: 'Log your first expense',
+            onPress: () => router.push('/add-transaction?kind=expense'),
+          }
+        : null;
 
   return (
     <ScreenBackground>
@@ -117,7 +132,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/profile')}
             accessibilityRole="button"
             accessibilityLabel="Open profile">
-            <Avatar name={profile.name} size={46} />
+            <Avatar name={profile.name} size={46} uri={profile.avatar} />
             <View style={styles.greeting}>
               <AppText variant="caption" color={colors.textSecondary}>
                 {greeting()},
@@ -142,8 +157,12 @@ export default function HomeScreen() {
             balance={totalBalance}
             currency={currency}
             hidden={hidden}
-            loading={accountsLoading}
-            onToggleHidden={() => updateSetting('hideBalance', !hidden)}>
+            loading={accountsLoading || preferencesLoading}
+            onToggleHidden={async () => {
+              if (preferencesLoading) return;
+              const result = await updateSetting('hideBalance', !hidden);
+              if (!result.ok) showToast(result.message);
+            }}>
             <QuickAction
               label="Add"
               icon="add"
@@ -186,6 +205,7 @@ export default function HomeScreen() {
             value={hidden ? maskAmount(spentLabel) : spentLabel}
             valueColor={colors.expense}
             caption={`Net ${formatCurrency(summary.totals.net, currency, 0)}`}
+            loading={expensesLoading}
             actionLabel={spentAction?.label}
             onAction={spentAction?.onPress}
           />
@@ -200,7 +220,21 @@ export default function HomeScreen() {
             onAction={() => router.push('/analytics')}
           />
           <Card>
-            {summary.breakdown.length === 0 ? (
+            {expensesLoading ? (
+              <>
+                <SkeletonRow lead={42} />
+                <SkeletonRow lead={42} />
+              </>
+            ) : expensesError && summary.breakdown.length === 0 ? (
+              <EmptyState
+                compact
+                icon="cloud-offline-outline"
+                title="Can't load spending"
+                body={`${expensesError}. Your expenses are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshExpenses}
+              />
+            ) : summary.breakdown.length === 0 ? (
               <EmptyState
                 compact
                 icon="pie-chart-outline"
@@ -292,7 +326,7 @@ export default function HomeScreen() {
         ) : null}
 
         {/* Budgets */}
-        {summary.budgets.length > 0 ? (
+        {budgetsLoading || (budgetsError && summary.budgets.length === 0) || summary.budgets.length > 0 ? (
           <View style={styles.section}>
             <SectionHeader
               title="Budgets"
@@ -301,19 +335,36 @@ export default function HomeScreen() {
               onAction={() => router.push('/analytics')}
             />
             <Card style={styles.tightCard}>
-              {summary.budgets.map((status, index) => (
-                <BudgetRow
-                  key={status.budget.id}
-                  status={status}
-                  currency={currency}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/edit-budget',
-                      params: { categoryId: status.category.id },
-                    })
-                  }
+              {budgetsLoading ? (
+                <>
+                  <SkeletonRow lead={42} />
+                  <SkeletonRow lead={42} />
+                  <SkeletonRow lead={42} />
+                </>
+              ) : budgetsError && summary.budgets.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon="cloud-offline-outline"
+                  title="Can't load budgets"
+                  body={`${budgetsError}. Your limits are safe — this device just cannot reach them right now.`}
+                  actionLabel="Try again"
+                  onAction={refreshBudgets}
                 />
-              ))}
+              ) : (
+                summary.budgets.map((status) => (
+                  <BudgetRow
+                    key={status.budget.id}
+                    status={status}
+                    currency={currency}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/edit-budget',
+                        params: { categoryId: status.category.id },
+                      })
+                    }
+                  />
+                ))
+              )}
             </Card>
           </View>
         ) : null}
@@ -326,7 +377,22 @@ export default function HomeScreen() {
             onAction={() => router.push('/transactions')}
           />
           <Card style={styles.tightCard}>
-            {recent.length === 0 ? (
+            {transactionsLoading ? (
+              <>
+                <SkeletonRow lead={42} />
+                <SkeletonRow lead={42} />
+                <SkeletonRow lead={42} />
+              </>
+            ) : transactionsError && recent.length === 0 ? (
+              <EmptyState
+                compact
+                icon="cloud-offline-outline"
+                title="Can't load activity"
+                body={`${transactionsError}. Your records are safe — this device just cannot reach them right now.`}
+                actionLabel="Try again"
+                onAction={refreshTransactions}
+              />
+            ) : recent.length === 0 ? (
               <EmptyState
                 compact
                 icon="receipt-outline"

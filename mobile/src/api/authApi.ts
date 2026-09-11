@@ -11,6 +11,10 @@ export type ApiUser = {
   name: string;
   email: string;
   createdAt: string;
+  /** Presigned URL, signed at read time. Absent until a photo is uploaded. */
+  avatar?: string;
+  /** Presigned URL for the profile banner. */
+  cover?: string;
 };
 
 /** A signed-in session. `expiresAt` is the server's word on when it dies. */

@@ -59,6 +59,8 @@ export default function AddTransactionScreen() {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ amount: number; title: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const available = useMemo(
     () => categories.filter((category) => category.kind === kind),
@@ -96,23 +98,36 @@ export default function AddTransactionScreen() {
     setCategoryId(null);
     setDate(new Date());
     setSaved(null);
+    setSaveError(null);
   };
 
-  const handleSave = () => {
-    if (!valid || !selectedCategory) return;
+  const handleSave = async () => {
+    if (!valid || !selectedCategory || saving) return;
 
-    const transaction = addTransaction({
-      title: title.trim() || selectedCategory.name,
+    setSaving(true);
+    setSaveError(null);
+
+    const recordedTitle = title.trim() || selectedCategory.name;
+    const recordedAmount = parsedAmount;
+
+    const res = await addTransaction({
+      title: recordedTitle,
       categoryId: selectedCategory.id,
-      amount: parsedAmount,
+      amount: recordedAmount,
       kind,
       date: stampTime(date).toISOString(),
       note,
       accountId,
     });
 
+    setSaving(false);
+    if (!res.ok) {
+      setSaveError(res.message);
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setSaved({ amount: transaction.amount, title: transaction.title });
+    setSaved({ amount: recordedAmount, title: recordedTitle });
   };
 
   const close = () => {
@@ -340,11 +355,23 @@ export default function AddTransactionScreen() {
           ) : null}
 
           <Button
-            label={kind === 'income' ? 'Save income' : 'Save expense'}
+            label={
+              saving
+                ? 'Saving…'
+                : kind === 'income'
+                  ? 'Save income'
+                  : 'Save expense'
+            }
             icon="checkmark-circle"
             onPress={handleSave}
-            disabled={!valid}
+            loading={saving}
+            disabled={!valid || saving}
           />
+          {saveError ? (
+            <AppText variant="caption" color={colors.expense} center>
+              {saveError}
+            </AppText>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
 
