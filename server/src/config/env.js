@@ -25,13 +25,27 @@ function resolveMongoUri() {
 
 const mongoUri = resolveMongoUri();
 
+/**
+ * Vercel loads this file on every cold start. `process.exit` there kills the
+ * serverless function and the visitor only sees FUNCTION_INVOCATION_FAILED —
+ * so a missing secret must not take the process down. Local `npm start` still
+ * exits: that is a developer sitting at a terminal, and they can read why.
+ */
+const serverless = Boolean(process.env.VERCEL);
 const missing = ['JWT_SECRET', 'BREVO_API_KEY', 'EMAIL_FROM'].filter((key) => !process.env[key]);
 if (!mongoUri) missing.push('MONGO_URI (or MONGO_USER/MONGO_PASSWORD/MONGO_CLUSTER)');
 
+const brevoKey = process.env.BREVO_API_KEY || '';
+const brevoKeyWrong = brevoKey.length > 0 && !brevoKey.startsWith('xkeysib-');
+
 if (missing.length > 0) {
   console.error(`Missing required environment variables: ${missing.join(', ')}`);
-  console.error('Copy .env.example to .env and fill it in.');
-  process.exit(1);
+  console.error(
+    serverless
+      ? 'Set them under Vercel → Project → Settings → Environment Variables.'
+      : 'Copy .env.example to .env and fill it in.'
+  );
+  if (!serverless) process.exit(1);
 }
 
 /**
@@ -41,12 +55,14 @@ if (missing.length > 0) {
  * not found". Left to itself that surfaces as a failed signup much later, with
  * an error naming nothing that would lead you back to the key.
  */
-if (!process.env.BREVO_API_KEY.startsWith('xkeysib-')) {
+if (brevoKeyWrong) {
   console.error('BREVO_API_KEY is not a Brevo v3 API key: it must start with "xkeysib-".');
   console.error('Take it from Brevo > SMTP & API > the "API keys" tab. The "SMTP" tab');
   console.error('on that same page issues SMTP keys ("xsmtpsib-"), which this API rejects.');
-  process.exit(1);
+  if (!serverless) process.exit(1);
 }
+
+const ready = missing.length === 0 && !brevoKeyWrong;
 
 const ONE_DAY_SECONDS = 24 * 60 * 60;
 
@@ -99,6 +115,9 @@ if (!filebase.configured) {
 }
 
 module.exports = {
+  /** False when a required secret is missing — requests should 503, not crash. */
+  ready,
+  serverless,
   port: Number(process.env.PORT) || 5000,
   mongoUri,
 

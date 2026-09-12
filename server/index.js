@@ -23,6 +23,26 @@ app.use(express.json({ limit: '100kb' }));
 // X-Forwarded-For rather than on the socket.
 app.set('trust proxy', 1);
 
+/**
+ * Atlas is opened here, not at boot. Vercel freezes the isolate between
+ * invocations, so a listen-time connect would either never run or take the
+ * function down with process.exit when Atlas refuses the IP.
+ */
+app.use(async (req, res, next) => {
+  if (!config.ready) {
+    return res.status(503).json({
+      error: 'server_unconfigured',
+      message: 'The server is missing environment variables',
+    });
+  }
+  try {
+    await connect();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 /** Unauthenticated on purpose: a health probe has no session. */
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the CashFlow API' });
@@ -65,6 +85,11 @@ async function start() {
   });
 }
 
-if (require.main === module) start();
+// Vercel sets VERCEL=1 and must not listen — it invokes `app` as the handler.
+if (require.main === module && !process.env.VERCEL) start();
 
-module.exports = { app, start };
+// The default export is the Express app so Vercel can call it as (req, res).
+// `.app` / `.start` stay on the same function object for local requires.
+module.exports = app;
+module.exports.app = app;
+module.exports.start = start;

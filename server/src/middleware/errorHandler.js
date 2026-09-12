@@ -46,6 +46,16 @@ function errorHandler(error, req, res, next) {
     return res.status(400).json({ error: 'invalid_input', message: 'Check the details you sent' });
   }
 
+  if (
+    error?.name === 'MongooseServerSelectionError' ||
+    error?.name === 'MongoServerSelectionError'
+  ) {
+    return res.status(502).json({
+      error: 'db_unreachable',
+      message: 'Cannot reach the database',
+    });
+  }
+
   // Anything unrecognised is ours: log it in full, tell the client nothing.
   console.error('Unhandled error:', error);
   return res.status(500).json({ error: 'server_error', message: 'Something went wrong' });
