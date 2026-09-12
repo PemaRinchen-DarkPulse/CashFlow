@@ -41,6 +41,20 @@ A wrong email and a wrong password both answer `bad_credentials` (401), and a mi
 ### `GET /api/auth/me`
 → `{ user }`. Called on launch: 200 means the session is still good, 401 means show sign-in. `avatar` and `cover` are presigned URLs when a photo has been uploaded.
 
+### `PATCH /api/auth/me`
+Rename the account. Body: `name` (non-empty, ≤ 80). → `{ user }`. Email is not editable here.
+
+### `PATCH /api/auth/password`
+Rate limited: 10 per 15 min.
+
+Body: `currentPassword`, `newPassword` (each ≥ 8 chars, not trimmed). → `204`.
+Wrong current password is `bad_credentials` (401). Same password again is `same_password` (400).
+
+### `DELETE /api/auth/me`
+Rate limited: 10 per 15 min.
+
+Body: `password`. → `204`. Wipes the user and everything they own (accounts, ledger, budgets, goals, debts, photos, leftover OTP). Wrong password is `bad_credentials` (401).
+
 ### `POST /api/auth/logout`
 → `204`. Stateless — only confirms the token was valid.
 
@@ -226,7 +240,7 @@ Money going out. Parallel to `incomes` rather than a shared ledger table, so "ea
 | Module | Functions |
 |---|---|
 | `client.ts` | `request(path, { method, body, token })`, `isApiConfigured()`. Never throws — resolves `{ ok: true, data }` or `{ ok: false, code, message }`. Passes a `FormData` body through without a `content-type` header |
-| `authApi.ts` | `startRegistration`, `verifyRegistration`, `completeRegistration`, `login`, `fetchMe`, `logout` |
+| `authApi.ts` | `startRegistration`, `verifyRegistration`, `completeRegistration`, `login`, `fetchMe`, `updateMyName`, `changePassword`, `deleteMyAccount`, `logout` |
 | `profileApi.ts` | `updateServerPhotos`. Multipart when a file goes with it, JSON for a removal |
 | `accountsApi.ts` | `fetchServerAccounts`, `createServerAccount`, `updateServerAccount`, `deleteServerAccount` |
 | `debtsApi.ts` | `fetchServerDebts`, `createServerDebt`, `updateServerDebt`, `deleteServerDebt` |

@@ -146,6 +146,7 @@ type Action =
   | { type: 'contributeToGoal'; id: string; amount: number }
   | { type: 'deleteGoal'; id: string }
   | { type: 'addAccount'; account: Account }
+  | { type: 'replaceAccount'; account: Account }
   | { type: 'deleteAccount'; id: string }
   | { type: 'setAccounts'; accounts: Account[] }
   | { type: 'setGoals'; goals: Goal[] }
@@ -357,6 +358,14 @@ function reducer(state: FinanceState, action: Action): FinanceState {
     case 'addAccount':
       return { ...state, accounts: [...state.accounts, action.account] };
 
+    case 'replaceAccount':
+      return {
+        ...state,
+        accounts: state.accounts.map((item) =>
+          item.id === action.account.id ? action.account : item
+        ),
+      };
+
     case 'deleteAccount':
       // Transactions booked against it are left alone: the history of what was
       // spent stays true even once the account it went through is gone.
@@ -497,6 +506,8 @@ type FinanceContextValue = {
     color?: string;
     icon?: IconName;
   }) => Promise<MutationResult>;
+  /** Rename an account. The balance is left alone — that moves with the ledger. */
+  renameAccount: (id: string, name: string) => Promise<MutationResult>;
   /** Removed from the server first, so a refused delete leaves the list intact. */
   deleteAccount: (id: string) => Promise<MutationResult>;
   refreshAccounts: () => void;
@@ -518,6 +529,8 @@ type FinanceContextValue = {
    * it had.
    */
   updateSetting: (key: keyof Settings, value: boolean) => Promise<MutationResult>;
+  /** The symbol shown beside every amount. Saved on the account, like the toggles. */
+  updateCurrency: (currency: string) => Promise<MutationResult>;
   /** The preferences are unknown until the server answers — not the seed defaults. */
   preferencesLoading: boolean;
   preferencesError: string | null;
@@ -1285,6 +1298,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
 
+      renameAccount: async (id, name) => {
+        if (!token) return { ok: false, message: 'Sign in to rename an account' };
+
+        const trimmed = name.trim();
+        if (!trimmed) return { ok: false, message: 'Enter an account name' };
+
+        const res = await updateServerAccount(token, id, { name: trimmed });
+        if (!res.ok) return { ok: false, message: res.message };
+
+        dispatch({ type: 'replaceAccount', account: res.data.account });
+        syncedBalances.current.set(res.data.account.id, res.data.account.balance);
+        return { ok: true };
+      },
+
       deleteAccount: async (id) => {
         if (!token) return { ok: false, message: 'Sign in to remove an account' };
 
@@ -1386,6 +1413,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const res = await updateServerPreferences(token, { [key]: value });
         if (!res.ok) {
           dispatch({ type: 'updateSetting', key, value: previous });
+          return { ok: false, message: res.message };
+        }
+        return { ok: true };
+      },
+      updateCurrency: async (currency) => {
+        if (!token) return { ok: false, message: 'Sign in to change currency' };
+
+        const previous = state.profile.currency;
+        if (previous === currency) return { ok: true };
+
+        dispatch({ type: 'setPreferences', preferences: { ...state.settings, currency } });
+        const res = await updateServerPreferences(token, { currency });
+        if (!res.ok) {
+          dispatch({ type: 'setPreferences', preferences: { ...state.settings, currency: previous } });
           return { ok: false, message: res.message };
         }
         return { ok: true };

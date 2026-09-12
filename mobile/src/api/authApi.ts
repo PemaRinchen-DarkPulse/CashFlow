@@ -69,6 +69,31 @@ export function fetchMe(token: string): Promise<ApiResult<{ user: ApiUser }>> {
   return request('/api/auth/me', { token });
 }
 
+/** Rename the account. Email stays put — it is how they sign in. */
+export function updateMyName(
+  token: string,
+  name: string
+): Promise<ApiResult<{ user: ApiUser }>> {
+  return request('/api/auth/me', { method: 'PATCH', body: { name: name.trim() }, token });
+}
+
+export function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<ApiResult<void>> {
+  return request('/api/auth/password', {
+    method: 'PATCH',
+    body: { currentPassword, newPassword },
+    token,
+  });
+}
+
+/** Closes the account after the password is confirmed. */
+export function deleteMyAccount(token: string, password: string): Promise<ApiResult<void>> {
+  return request('/api/auth/me', { method: 'DELETE', body: { password }, token });
+}
+
 export function logout(token: string): Promise<ApiResult<void>> {
   return request('/api/auth/logout', { method: 'POST', token });
 }

@@ -13,6 +13,8 @@ import {
 import { Platform } from 'react-native';
 
 import {
+  changePassword as changePasswordRequest,
+  deleteMyAccount as deleteMyAccountRequest,
   fetchMe,
   login as loginRequest,
   logout as logoutRequest,
@@ -157,6 +159,13 @@ type AuthContextValue = {
    * a hole where a face should be.
    */
   replaceAccount: (user: ApiUser) => Promise<void>;
+  /** Replaces the password. A stored biometric secret is updated to match. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
+  /**
+   * Closes the account on the server, then wipes this device. The password is
+   * asked for again so an unlocked phone is not enough.
+   */
+  closeAccount: (password: string) => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -351,6 +360,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
+  const changePassword = useCallback<AuthContextValue['changePassword']>(
+    async (currentPassword, newPassword) => {
+      if (!session) return { ok: false, message: 'Sign in first' };
+
+      const result = await changePasswordRequest(session.token, currentPassword, newPassword);
+      if (!result.ok) {
+        return {
+          ok: false,
+          message: result.code === 'bad_credentials' ? 'Wrong password' : result.message,
+        };
+      }
+
+      // The sensor still unlocks whatever was stored. Leave a changed password
+      // in its place so the next Face ID / fingerprint still works.
+      if (biometricEnabled) await writeSecret(BIOMETRIC_SECRET_KEY, newPassword);
+      return { ok: true };
+    },
+    [session, biometricEnabled]
+  );
+
+  const closeAccount = useCallback<AuthContextValue['closeAccount']>(
+    async (password) => {
+      if (!session) return { ok: false, message: 'Sign in first' };
+
+      const result = await deleteMyAccountRequest(session.token, password);
+      if (!result.ok) {
+        return {
+          ok: false,
+          message: result.code === 'bad_credentials' ? 'Wrong password' : result.message,
+        };
+      }
+
+      await forgetDevice();
+      return { ok: true };
+    },
+    [session, forgetDevice]
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
@@ -367,6 +414,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       disableBiometrics,
       forgetDevice,
       replaceAccount,
+      changePassword,
+      closeAccount,
     }),
     [
       status,
@@ -382,6 +431,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       disableBiometrics,
       forgetDevice,
       replaceAccount,
+      changePassword,
+      closeAccount,
     ]
   );
 

@@ -36,9 +36,17 @@ import type { Account } from '@/src/types';
 import { formatDate } from '@/src/utils/date';
 import { formatCurrency, maskAmount } from '@/src/utils/format';
 import { pickAvatarImage, pickCoverImage } from '@/src/utils/goalImage';
+import { updateMyName, MIN_PASSWORD_LENGTH } from '@/src/api/authApi';
 import { updateServerPhotos } from '@/src/api/profileApi';
 
 type PhotoSlot = 'avatar' | 'cover';
+
+const CURRENCIES = [
+  { symbol: 'Nu.', name: 'Bhutanese ngultrum' },
+  { symbol: 'INR', name: 'Indian rupee' },
+  { symbol: '$', name: 'US dollar' },
+  { symbol: '€', name: 'Euro' },
+] as const;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -50,16 +58,27 @@ export default function ProfileScreen() {
     totalBalance,
     streak,
     updateSetting,
+    updateCurrency,
     resetData,
     unreadCount,
     addAccount,
+    renameAccount,
     deleteAccount,
     preferencesLoading,
     preferencesError,
     refreshPreferences,
   } = useFinance();
-  const { biometrics, biometricEnabled, enableBiometrics, disableBiometrics, signOut, token, replaceAccount } =
-    useAuth();
+  const {
+    biometrics,
+    biometricEnabled,
+    enableBiometrics,
+    disableBiometrics,
+    signOut,
+    token,
+    replaceAccount,
+    changePassword,
+    closeAccount,
+  } = useAuth();
   const { showToast } = useToast();
   const { profile, accounts, transactions, settings, rewards } = state;
   const currency = profile.currency;
@@ -68,13 +87,27 @@ export default function ProfileScreen() {
   const [confirming, setConfirming] = useState(false);
   const [biometricPassword, setBiometricPassword] = useState('');
   const [enabling, setEnabling] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [addingAccount, setAddingAccount] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountBalance, setNewAccountBalance] = useState('');
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null);
   const [removingAccount, setRemovingAccount] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editAccountName, setEditAccountName] = useState('');
+  const [renamingAccount, setRenamingAccount] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [pickingCurrency, setPickingCurrency] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [closingAccount, setClosingAccount] = useState(false);
+  const [closePassword, setClosePassword] = useState('');
+  const [closing, setClosing] = useState(false);
   const [photoSheet, setPhotoSheet] = useState<PhotoSlot | null>(null);
   const [uploading, setUploading] = useState<PhotoSlot | null>(null);
 
@@ -130,9 +163,94 @@ export default function ProfileScreen() {
     showToast(result.ok ? 'Account removed' : result.message, result.ok ? 'success' : 'error');
   };
 
-  const handleReset = () => {
+  const openNameEditor = () => {
+    setDraftName(profile.name);
+    setEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    const name = draftName.trim();
+    if (!name || savingName) return;
+    if (!token) {
+      showToast('Sign in to change your name');
+      return;
+    }
+
+    setSavingName(true);
+    const result = await updateMyName(token, name);
+    setSavingName(false);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+
+    await replaceAccount(result.data.user);
+    setEditingName(false);
+    showToast('Name updated', 'success');
+  };
+
+  const handlePickCurrency = async (symbol: string) => {
+    setPickingCurrency(false);
+    const result = await updateCurrency(symbol);
+    if (!result.ok) showToast(result.message);
+    else showToast('Currency updated', 'success');
+  };
+
+  const handleSaveAccountName = async () => {
+    if (!editingAccount || renamingAccount) return;
+    const name = editAccountName.trim();
+    if (!name) return;
+
+    setRenamingAccount(true);
+    const result = await renameAccount(editingAccount.id, name);
+    setRenamingAccount(false);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+
+    setEditingAccount(null);
+    showToast('Account renamed', 'success');
+  };
+
+  const handleChangePassword = async () => {
+    if (savingPassword) return;
+    if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+      showToast(`Use at least ${MIN_PASSWORD_LENGTH} characters`);
+      return;
+    }
+    if (nextPassword !== confirmPassword) {
+      showToast('New passwords do not match');
+      return;
+    }
+
+    setSavingPassword(true);
+    const result = await changePassword(currentPassword, nextPassword);
+    setSavingPassword(false);
+    if (!result.ok) {
+      showToast(result.message);
+      return;
+    }
+
+    setChangingPassword(false);
+    setCurrentPassword('');
+    setNextPassword('');
+    setConfirmPassword('');
+    showToast('Password updated', 'success');
+  };
+
+  const handleCloseAccount = async () => {
+    if (closing) return;
+    setClosing(true);
+    const result = await closeAccount(closePassword);
+    if (!result.ok) {
+      setClosing(false);
+      showToast(result.message);
+      return;
+    }
+    // The session is already gone — this screen is unmounting. Clear leftover
+    // local rewards so the next person on this phone does not inherit them.
     resetData();
-    setResetting(false);
   };
 
   const handleBiometricToggle = async (value: boolean) => {
@@ -295,9 +413,16 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.identity}>
-            <AppText variant="h1" center numberOfLines={1} style={styles.identityName}>
-              {profile.name}
-            </AppText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit display name"
+              onPress={openNameEditor}
+              style={({ pressed }) => [styles.identityNameHit, pressed && { opacity: 0.7 }]}>
+              <AppText variant="h1" center numberOfLines={1} style={styles.identityName}>
+                {profile.name}
+              </AppText>
+              <Ionicons name="pencil" size={14} color={colors.textMuted} />
+            </Pressable>
             <AppText variant="body" color={colors.textMuted} center numberOfLines={1}>
               {profile.email}
             </AppText>
@@ -357,15 +482,24 @@ export default function ProfileScreen() {
                   <View key={account.id}>
                     {index > 0 ? <View style={styles.divider} /> : null}
                     <View style={styles.accountRow}>
-                      <CategoryIcon icon={account.icon} color={account.color} size={40} />
-                      {/* Name then balance. Nothing that looks like a card or
-                          account number: the app never asks for one. */}
-                      <View style={styles.accountText}>
-                        <AppText variant="h3">{account.name}</AppText>
-                        <AppText tabular style={styles.accountBalance}>
-                          {hidden ? maskAmount(label) : label}
-                        </AppText>
-                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Rename ${account.name}`}
+                        onPress={() => {
+                          setEditingAccount(account);
+                          setEditAccountName(account.name);
+                        }}
+                        style={({ pressed }) => [styles.accountHit, pressed && { opacity: 0.7 }]}>
+                        <CategoryIcon icon={account.icon} color={account.color} size={40} />
+                        {/* Name then balance. Nothing that looks like a card or
+                            account number: the app never asks for one. */}
+                        <View style={styles.accountText}>
+                          <AppText variant="h3">{account.name}</AppText>
+                          <AppText tabular style={styles.accountBalance}>
+                            {hidden ? maskAmount(label) : label}
+                          </AppText>
+                        </View>
+                      </Pressable>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={`Remove ${account.name}`}
@@ -386,17 +520,15 @@ export default function ProfileScreen() {
           <SectionHeader title="Preferences" />
           <Card style={styles.listCard}>
             {/*
-              The four account-level toggles belong to the server. Showing the
-              seed defaults as if they were this user's, then flipping them when
-              the real set arrives, is the half-loaded card all over again —
+              Hide-balance and currency belong to the server. Showing the seed
+              defaults as if they were this user's, then flipping them when the
+              real set arrives, is the half-loaded card all over again —
               skeleton, error, or the finished switches, never a guess.
               Biometrics stay on this device (the hardware is here) so that row
               is not gated with them.
             */}
             {preferencesLoading ? (
               <>
-                <SkeletonRow lead={36} />
-                <SkeletonRow lead={36} />
                 <SkeletonRow lead={36} />
                 <SkeletonRow lead={36} />
               </>
@@ -420,30 +552,11 @@ export default function ProfileScreen() {
                 />
                 <View style={styles.divider} />
                 <SettingRow
-                  icon="notifications"
-                  label="Budget alerts"
-                  description="Warn me at 80% of a category limit"
-                  accent={colors.warning}
-                  value={settings.budgetAlerts}
-                  onValueChange={(value) => handleSetting('budgetAlerts', value)}
-                />
-                <View style={styles.divider} />
-                <SettingRow
-                  icon="flag"
-                  label="Goal reminders"
-                  description="Nudge me to contribute each month"
-                  accent={colors.info}
-                  value={settings.goalReminders}
-                  onValueChange={(value) => handleSetting('goalReminders', value)}
-                />
-                <View style={styles.divider} />
-                <SettingRow
-                  icon="mail"
-                  label="Weekly digest"
-                  description="A Sunday summary of the week"
-                  accent="#2DD4BF"
-                  value={settings.weeklyDigest}
-                  onValueChange={(value) => handleSetting('weeklyDigest', value)}
+                  icon="cash-outline"
+                  label="Currency"
+                  description="Shown beside every amount"
+                  trailingText={currency}
+                  onPress={() => setPickingCurrency(true)}
                 />
               </>
             )}
@@ -485,15 +598,26 @@ export default function ProfileScreen() {
               icon="pie-chart-outline"
               label="Manage budgets"
               accent={colors.warning}
-              onPress={() => router.push('/analytics')}
+              onPress={() => router.push('/goals')}
             />
             <View style={styles.divider} />
             <SettingRow
-              icon="refresh"
-              label="Reset all data"
-              description="Restore the sample dataset"
-              destructive
-              onPress={() => setResetting(true)}
+              icon="key-outline"
+              label="Change password"
+              description={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              onPress={() => {
+                setCurrentPassword('');
+                setNextPassword('');
+                setConfirmPassword('');
+                setChangingPassword(true);
+              }}
+            />
+            <View style={styles.divider} />
+            <SettingRow
+              icon="heart-outline"
+              label="About CashFlow"
+              description="Made by Pema Rinchen"
+              onPress={() => router.push('/about')}
             />
             <View style={styles.divider} />
             <SettingRow
@@ -506,6 +630,17 @@ export default function ProfileScreen() {
               // ever a step between the user and what they asked for.
               onPress={signOut}
             />
+            <View style={styles.divider} />
+            <SettingRow
+              icon="trash-outline"
+              label="Delete account"
+              description="Permanently erase your CashFlow account"
+              destructive
+              onPress={() => {
+                setClosePassword('');
+                setClosingAccount(true);
+              }}
+            />
           </Card>
         </View>
 
@@ -513,11 +648,15 @@ export default function ProfileScreen() {
           <View style={styles.footerBadge}>
             <Ionicons name="shield-checkmark" size={13} color={colors.primary} />
             <AppText variant="caption" color={colors.textSecondary}>
-              Your money. Always protected.
+              Ledger and photos stay on your account.
             </AppText>
           </View>
+          <AppText variant="caption" color={colors.textMuted} center style={styles.footerCopy}>
+            Face ID and fingerprint never leave this phone. CashFlow never asks
+            for a card or account number.
+          </AppText>
           <AppText variant="caption" color={colors.textMuted}>
-            CashFlow · v1.0.0 · Data stays on this device
+            CashFlow · v1.0.0 · Made by Pema Rinchen
           </AppText>
         </View>
         </View>
@@ -551,18 +690,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-
-      <ConfirmDialog
-        visible={resetting}
-        icon="refresh"
-        title="Erase everything?"
-        message="Every transaction, budget, goal and debt you have entered will be wiped and the sample data restored."
-        detail="This cannot be undone."
-        confirmLabel="Yes, erase it all"
-        cancelLabel="Keep my data"
-        onConfirm={handleReset}
-        onCancel={() => setResetting(false)}
-      />
 
       <ConfirmDialog
         visible={!!deletingAccount}
@@ -679,6 +806,239 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal
+        visible={editingName}
+        transparent
+        animationType="none"
+        onRequestClose={() => setEditingName(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditingName(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Display name</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              This is what shows on your profile. Your email stays the same — it is how you sign in.
+            </AppText>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Name
+              </AppText>
+              <TextInput
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder="Your name"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                autoFocus
+                maxLength={80}
+                onSubmitEditing={handleSaveName}
+              />
+            </View>
+            <Button
+              label="Save name"
+              onPress={handleSaveName}
+              loading={savingName}
+              disabled={!draftName.trim()}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={!!editingAccount}
+        transparent
+        animationType="none"
+        onRequestClose={() => setEditingAccount(null)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditingAccount(null)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Rename account</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              The balance stays put. Only the label changes.
+            </AppText>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Account name
+              </AppText>
+              <TextInput
+                value={editAccountName}
+                onChangeText={setEditAccountName}
+                placeholder="BOB, BNB, Cash"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                autoFocus
+                maxLength={40}
+                onSubmitEditing={handleSaveAccountName}
+              />
+            </View>
+            <Button
+              label="Save name"
+              onPress={handleSaveAccountName}
+              loading={renamingAccount}
+              disabled={!editAccountName.trim()}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={pickingCurrency}
+        transparent
+        animationType="none"
+        onRequestClose={() => setPickingCurrency(false)}>
+        <View style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPickingCurrency(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Currency</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              A symbol beside amounts. This does not convert what you have already logged.
+            </AppText>
+            {CURRENCIES.map((item) => {
+              const selected = item.symbol === currency;
+              return (
+                <Pressable
+                  key={item.symbol}
+                  accessibilityRole="button"
+                  onPress={() => handlePickCurrency(item.symbol)}
+                  style={({ pressed }) => [
+                    styles.currencyRow,
+                    selected && styles.currencyRowSelected,
+                    pressed && { opacity: 0.75 },
+                  ]}>
+                  <View>
+                    <AppText variant="h3">{item.symbol}</AppText>
+                    <AppText variant="caption" color={colors.textMuted}>
+                      {item.name}
+                    </AppText>
+                  </View>
+                  {selected ? <Ionicons name="checkmark" size={20} color={colors.primary} /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={changingPassword}
+        transparent
+        animationType="none"
+        onRequestClose={() => setChangingPassword(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChangingPassword(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Change password</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              Use the current one once, then pick a new one of at least {MIN_PASSWORD_LENGTH}{' '}
+              characters.
+            </AppText>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Current password
+              </AppText>
+              <TextInput
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Current password"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+                autoFocus
+              />
+            </View>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                New password
+              </AppText>
+              <TextInput
+                value={nextPassword}
+                onChangeText={setNextPassword}
+                placeholder="New password"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Confirm new password
+              </AppText>
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Repeat new password"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+                onSubmitEditing={handleChangePassword}
+              />
+            </View>
+            <Button
+              label="Update password"
+              onPress={handleChangePassword}
+              loading={savingPassword}
+              disabled={!currentPassword || !nextPassword || !confirmPassword}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={closingAccount}
+        transparent
+        animationType="none"
+        onRequestClose={() => setClosingAccount(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setClosingAccount(false)} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+            <View style={styles.grabber} />
+            <AppText variant="h2">Delete account?</AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              This permanently erases your ledger, budgets, goals, debts, photos and the account
+              itself. It cannot be undone.
+            </AppText>
+            <View style={styles.field}>
+              <AppText variant="label" color={colors.textMuted}>
+                Password
+              </AppText>
+              <TextInput
+                value={closePassword}
+                onChangeText={setClosePassword}
+                placeholder="Confirm with your password"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+                autoFocus
+                onSubmitEditing={handleCloseAccount}
+              />
+            </View>
+            <Button
+              label="Delete my account"
+              variant="danger"
+              icon="trash"
+              onPress={handleCloseAccount}
+              loading={closing}
+              disabled={!closePassword}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScreenBackground>
   );
 }
@@ -779,9 +1139,41 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     gap: 4,
   },
+  identityNameHit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    maxWidth: '100%',
+    paddingHorizontal: spacing.sm,
+  },
   identityName: {
     fontSize: 28,
     letterSpacing: -0.7,
+    flexShrink: 1,
+  },
+  footerCopy: {
+    paddingHorizontal: spacing.xl,
+  },
+  accountHit: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  currencyRowSelected: {
+    borderColor: colors.primary,
   },
   tier: {
     flexDirection: 'row',

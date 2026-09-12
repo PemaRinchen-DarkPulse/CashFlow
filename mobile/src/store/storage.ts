@@ -4,10 +4,10 @@ import { ALL_CATEGORIES } from '@/src/data/categories';
 import { createSeedState } from '@/src/data/seed';
 import type { FinanceState } from '@/src/types';
 
-// Bumped when a seeded default changes (Nu. currency, balances hidden by
-// default): saved state wins over the seed during reconcile, so an older blob
-// would keep the previous defaults.
-const STORAGE_KEY = 'cashflow:state:v4';
+// Bumped when a seeded default changes (empty rewards/notifications): saved
+// state wins over the seed during reconcile, so an older blob would keep the
+// previous demo feed and points.
+const STORAGE_KEY = 'cashflow:state:v5';
 
 /**
  * Everything the app keeps on the device. Accounts, goals, debts, budgets,
@@ -65,7 +65,7 @@ function reconcile(raw: unknown): FinanceState {
     // totals on the home screen are summed from this list, so a stale copy
     // would say someone owes money they have already been paid back.
     debts: [],
-    notifications: saved.notifications ?? seed.notifications,
+    notifications: saved.notifications ?? [],
     rewards: { ...seed.rewards, ...saved.rewards },
     // Never restored. A second phone must not inherit this device's last
     // toggles, and this phone must not keep showing them while the real ones

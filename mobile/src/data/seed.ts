@@ -197,57 +197,31 @@ export function createSeedState(now = new Date()): FinanceState {
     // would tell a real user that three strangers owe them money, and put those
     // figures into the balance their own decisions rest on.
     debts: [],
-    notifications: [
-      {
-        id: 'ntf-1',
-        title: 'Food & Drinks is close to its limit',
-        body: 'You have used 82% of this month’s Food & Drinks budget.',
-        date: addDays(now, -1).toISOString(),
-        icon: 'warning',
-        tone: 'warning',
-        read: false,
-      },
-      {
-        id: 'ntf-2',
-        title: 'Salary received',
-        body: 'Your monthly salary landed in the Everyday account.',
-        date: addDays(now, -3).toISOString(),
-        icon: 'arrow-down-circle',
-        tone: 'positive',
-        read: false,
-      },
-      {
-        id: 'ntf-3',
-        title: 'Emergency Fund is 64% funded',
-        body: 'Keep the streak going — $3,520 left to reach your target.',
-        date: addDays(now, -6).toISOString(),
-        icon: 'flag',
-        tone: 'neutral',
-        read: true,
-      },
-    ],
+    // Device-local only, and empty on purpose. Fake budget warnings and a
+    // salary that never arrived made a first run look like someone else's app.
+    notifications: [],
     rewards: {
-      points: 1240,
+      points: 0,
       badges: [
         {
           id: 'badge-starter',
           name: 'First Steps',
           icon: 'footsteps',
-          earned: true,
+          earned: false,
           hint: 'Log your first transaction',
         },
         {
           id: 'badge-streak',
           name: 'Week Strong',
           icon: 'flame',
-          earned: true,
+          earned: false,
           hint: 'Track expenses 7 days in a row',
         },
         {
           id: 'badge-budget',
           name: 'Budget Keeper',
           icon: 'shield-checkmark',
-          earned: true,
+          earned: false,
           hint: 'Finish a month under budget',
         },
         {

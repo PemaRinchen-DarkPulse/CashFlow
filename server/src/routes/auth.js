@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const config = require('../config/env');
 const requireAuth = require('../middleware/requireAuth');
 const User = require('../models/User');
+const { deleteUserAccount } = require('../services/deleteUser');
 const otpService = require('../services/otpService');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
@@ -153,6 +154,55 @@ router.patch(
     req.user.name = requireName(req.body?.name);
     await req.user.save();
     res.json({ user: await presentUser(req.user) });
+  })
+);
+
+/**
+ * PATCH /api/auth/password — replace the password.
+ *
+ * Needs the current one so a stolen session cannot silently take the account.
+ * A miss answers the same way as a wrong login, and is metered the same way,
+ * so this is not a cheaper guess than the sign-in screen.
+ */
+router.patch(
+  '/password',
+  requireAuth,
+  guessLimiter,
+  asyncHandler(async (req, res) => {
+    const currentPassword = requirePassword(req.body?.currentPassword);
+    const nextPassword = requirePassword(req.body?.newPassword);
+    if (currentPassword === nextPassword) {
+      throw ApiError.badRequest('same_password', 'Pick a different password');
+    }
+    if (!(await bcrypt.compare(currentPassword, req.user.passwordHash))) {
+      throw ApiError.unauthorized('bad_credentials', 'Wrong password');
+    }
+
+    req.user.passwordHash = await bcrypt.hash(nextPassword, PASSWORD_ROUNDS);
+    await req.user.save();
+    res.status(204).end();
+  })
+);
+
+/**
+ * DELETE /api/auth/me — close the account.
+ *
+ * The password is asked for again so a borrowed unlocked phone cannot wipe
+ * someone else's ledger. Everything the user owns goes with them: accounts,
+ * ledger, budgets, goals, debts, photos, and any leftover sign-up code.
+ */
+router.delete(
+  '/me',
+  requireAuth,
+  guessLimiter,
+  asyncHandler(async (req, res) => {
+    const password = requirePassword(req.body?.password);
+    if (!(await bcrypt.compare(password, req.user.passwordHash))) {
+      throw ApiError.unauthorized('bad_credentials', 'Wrong password');
+    }
+
+    await deleteUserAccount(req.user);
+    res.status(204).end();
   })
 );
 

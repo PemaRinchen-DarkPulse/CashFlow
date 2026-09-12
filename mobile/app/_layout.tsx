@@ -61,6 +61,7 @@ function RootNavigator() {
         <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="rewards" />
+        <Stack.Screen name="about" />
       </Stack.Protected>
 
       <Stack.Protected guard={!signedIn}>
