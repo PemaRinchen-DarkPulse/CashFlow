@@ -56,7 +56,7 @@ From the **repo root** (not this folder):
 .\build-mobile.ps1
 ```
 
-That logs in to Expo if needed and builds a preview APK against Vercel. Download it from the URL EAS prints, or from [the project builds page](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds).
+That logs in to Expo if needed and builds a preview APK against Vercel. The live install is [this Android build](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds/c021c419-c762-4674-85cc-7d54cea9f427).
 
 Profiles in `eas.json`:
 

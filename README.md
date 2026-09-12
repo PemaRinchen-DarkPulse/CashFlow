@@ -4,7 +4,9 @@ A personal finance app by **Pema Rinchen**, built first for Bhutan. Amounts defa
 
 CashFlow answers one question at a glance: **where did my money go?**
 
-**Live API:** [https://cash-flow-server-fawn.vercel.app](https://cash-flow-server-fawn.vercel.app)
+**Get the app:** [Open CashFlow (Android)](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds/c021c419-c762-4674-85cc-7d54cea9f427)
+
+On the phone, allow **Install unknown apps**, then install the APK. That build talks to the live API at [cash-flow-server-fawn.vercel.app](https://cash-flow-server-fawn.vercel.app).
 
 ## The problem
 
@@ -47,39 +49,12 @@ CashFlow is a tracker you type into, not a bank connection.
 - Earn points and badges for logging (kept on the device)
 - Hide balances, pick a currency, change password, or delete the account
 
-## Screenshots
-
-Home — balance, this month, and where the money went.
-
-![CashFlow Home](docs/screenshots/home.jpg)
-
-Plan — savings goals, debts, and rewards.
-
-![CashFlow Plan](docs/screenshots/plan.jpg)
-
-### Download these images
-
-| Screen | File |
-| --- | --- |
-| Home | [Download home.jpg](docs/screenshots/home.jpg) |
-| Plan | [Download plan.jpg](docs/screenshots/plan.jpg) |
-
-Right-click a picture or the link and choose **Save as**. On GitHub, open the file and click **Download**.
-
-### Download the Android app
-
-- [All builds](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds)
-- [Latest APK build](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds/c021c419-c762-4674-85cc-7d54cea9f427)
-
-Allow **Install unknown apps**, then open the APK. An installed build talks to the Vercel API.
-
 ## What’s in this repo
 
 | Folder | What it is | Docs |
 | --- | --- | --- |
 | `mobile/` | Expo / React Native phone app | [mobile/README.md](mobile/README.md) |
 | `server/` | Express API (MongoDB Atlas, hosted on Vercel) | [server/README.md](server/README.md) |
-| `docs/screenshots/` | The images above | [home.jpg](docs/screenshots/home.jpg) · [plan.jpg](docs/screenshots/plan.jpg) |
 
 There is no root `package.json`. The two packages are installed and run on their own.
 
