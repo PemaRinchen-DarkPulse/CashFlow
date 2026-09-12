@@ -9,29 +9,35 @@
 import Constants from 'expo-constants';
 
 /**
- * Where the server is, worked out rather than written down.
+ * The API a released build talks to. Preview deploys get a new host every
+ * ship; this is the stable one.
+ */
+const RELEASED_API_URL = 'https://cash-flow-server-fawn.vercel.app';
+
+/**
+ * Where the server is.
  *
- * A LAN IP in .env goes stale the moment the router hands this machine a new
- * lease, and "localhost" is the phone itself, so neither can be committed. But
- * the phone already knows the development machine's address — it is the host it
- * just fetched the bundle from — so the only thing left to state is the port
- * the API listens on, which is the same number the server reads as PORT.
+ * While Metro is running (`__DEV__`), the phone uses the same machine that
+ * served the bundle — never `localhost`, which on a phone is the phone itself.
+ * The port is the one the local API listens on.
  *
- * EXPO_PUBLIC_API_URL still wins when it is set: a released build has no
- * development server to ask, and points at a real deployment instead.
+ * An installed APK / TestFlight build has no Metro, so it uses the Vercel
+ * deployment. `EXPO_PUBLIC_API_URL` can override that for a one-off release.
  *
- * The one case this cannot serve is `expo start --tunnel`, where the bundle
- * arrives over a public hostname that forwards Metro alone and never the API.
+ * `expo start --tunnel` still cannot reach a local API: the tunnel forwards
+ * Metro only.
  */
 function resolveBaseUrl(): string {
-  const explicit = process.env.EXPO_PUBLIC_API_URL;
-  if (explicit) return explicit.replace(/\/+$/, '');
+  if (!__DEV__) {
+    const released = process.env.EXPO_PUBLIC_API_URL || RELEASED_API_URL;
+    return released.replace(/\/+$/, '');
+  }
 
   // Shaped like "192.168.0.95:8081" — Metro's port, which is not the API's.
   // Bracketed IPv6 keeps its brackets; only a trailing ":port" comes off.
   const host = Constants.expoConfig?.hostUri?.match(/^(\[[^\]]+\]|[^:/]+)/)?.[1];
-  const port = process.env.EXPO_PUBLIC_API_PORT;
-  if (!host || !port) return '';
+  const port = process.env.EXPO_PUBLIC_API_PORT || '5000';
+  if (!host) return '';
 
   return `http://${host}:${port}`;
 }

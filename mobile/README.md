@@ -1,62 +1,112 @@
-# CashFlow
+# CashFlow mobile
 
-A personal finance and expense tracker built with **React Native + Expo (SDK 54) + TypeScript**,
-designed to answer one question at a glance: **where did my money go?**
+Expo (SDK 54) + React Native + TypeScript phone app. It is the client for the [CashFlow API](../server/README.md).
+
+What the product is for, and why it exists: [root README](../README.md).
+
+**Released builds call:** [https://cash-flow-server-fawn.vercel.app](https://cash-flow-server-fawn.vercel.app)
+
+## Screens
+
+| Tab / screen | Purpose |
+| --- | --- |
+| **Home** | Net balance, month income/spend, category donut, recent transactions, goal, streak |
+| **Activity** | Full ledger by day, with search and income / expense / category filters |
+| **Analytics** | Week / month / year spending, breakdown, savings rate, insights |
+| **Plan** | Monthly budgets, savings goals, debts with friends |
+| **Profile** | Accounts, photos, currency, hide balances, password, delete account |
+| **About** | Who made the app |
+
+Also: add/edit transaction, transaction detail, new goal, edit budget, add/edit debt, rewards, notifications.
+
+## Which server it uses
+
+| How you run it | API |
+| --- | --- |
+| `npx expo start` / Expo Go (`__DEV__`) | Your computer, port `5000`, same LAN host as Metro. Not `localhost` on the phone. |
+| Installed APK | `https://cash-flow-server-fawn.vercel.app` |
+
+Do not set `EXPO_PUBLIC_API_URL` in `.env` for daily work, or Expo Go will hit Vercel too.
+
+The phone and the PC must be on the same Wi-Fi. Keep `cd server && npm run dev` running.
+
+## Run
 
 ```bash
+cd mobile
 npm install
-npx expo start        # then press a / i / w, or scan the QR code
+npx expo start
 ```
 
-## What it does
+Scan the QR with Expo Go. After changing `app.json` or native deps, use `npx expo start --clear`.
 
-| Screen | Purpose |
+Copy `.env.example` to `.env` only if you need a non-default API port:
+
+```
+EXPO_PUBLIC_API_PORT=5000
+```
+
+That port must match `PORT` in `server/.env`.
+
+## Build an APK
+
+From the **repo root** (not this folder):
+
+```powershell
+.\build-mobile.ps1
+```
+
+That logs in to Expo if needed and builds a preview APK against Vercel. Download it from the URL EAS prints, or from [the project builds page](https://expo.dev/accounts/pemarinchen12/projects/cashflow/builds).
+
+Profiles in `eas.json`:
+
+| Profile | What you get |
 | --- | --- |
-| **Home** | Total balance with trend, month income/spend, category donut, budget progress, recent transactions, goal spotlight, streak |
-| **Activity** | Full ledger grouped by day, with search, income/expense filters and category filters |
-| **Analytics** | Week/month/year spending, category breakdown, savings rate, daily average, biggest payees, written insights |
-| **Plan** | Monthly category budgets, savings goals, and debts owed to and by friends |
-| **Profile** | Accounts, preferences, rewards, notifications, reset |
+| `preview` | Internal APK → Vercel |
+| `production` | Store build → Vercel |
+| `development` | Dev client; after install, `npm start` still uses the local API |
 
-Supporting routes: add transaction (with success confirmation), transaction detail, budget editor,
-new goal, notifications and rewards.
-
-## Architecture
+## Layout
 
 ```
-app/                     expo-router routes ((tabs) group + stack screens)
-src/theme/               design tokens: colours, spacing, radii, Inter type scale, shadows
-src/types.ts             domain model (Transaction, Budget, Goal, Account, …)
-src/data/                categories and the deterministic 6-month demo dataset
-src/store/               FinanceContext reducer + AsyncStorage persistence
-src/utils/               date helpers, currency formatting, analytics selectors
-src/components/          UI primitives, cards, rows and SVG charts
+mobile/
+├── app/                   expo-router (a file is a screen)
+│   ├── (auth)/            login, register
+│   ├── (tabs)/            Home, Activity, Analytics, Plan, Profile
+│   └── *.tsx              add-transaction, goals, debts, rewards, about, …
+├── src/
+│   ├── api/               one module per server resource + client.ts
+│   ├── components/        shared UI
+│   ├── store/             AuthContext, FinanceContext
+│   ├── data/              categories
+│   ├── utils/             dates, currency, analytics
+│   └── theme/             colours, type, space
+├── app.json
+├── eas.json
+└── .env.example
 ```
 
-- **State** lives in a single reducer behind `useFinance()`, persisted to AsyncStorage
-  (debounced) and reconciled against a fresh seed on load so new fields never land undefined.
-- **Money is never double-counted**: adding or deleting a transaction adjusts the account
-  balance by the exact inverse amount; goal contributions are treated as transfers between
-  accounts rather than spending, so they stay out of expense analytics.
-- **Debts are liabilities, not income**: borrowing from a friend raises your cash balance
-  and repaying lowers it, but neither touches income, spending or any budget. `netWorth`
-  reports cash minus what you owe plus what is owed to you — what you would hold after
-  everyone settles up.
-- **Derived values stay derived**: the tracking streak, budget status and every chart are
-  computed from the ledger, so no screen can drift out of sync with another.
-- **Charts** are hand-drawn with `react-native-svg` (donut, sparkline) and plain views
-  (bars and progress), so there is no charting dependency to keep current.
-- **No animation anywhere**: screens, modals and toasts appear outright, and progress
-  bars render at their value. Nothing fades, slides or eases in.
+## How money is treated
 
-Accounts live in the server's database — the phone reads them back on sign-in, and adding
-or removing one is a write to `/api/accounts` before it shows up in the list. Everything
-else (transactions, budgets, goals, debts) is still local to the device, so the balance an
-account carries is pushed up whenever the ledger moves it.
+- Adding or deleting a transaction moves the account balance by the inverse amount. The server does not also change that balance — that would double-count.
+- Goal contributions are transfers, not spending. They stay out of expense analytics.
+- Debts are liabilities, not income. Borrowing and repayment move cash and stay out of budgets.
+- Charts, streak, and budget status are derived from the ledger so screens cannot drift apart.
+- The server list is the list. An empty fetch is empty; a failed fetch is an error, not last week’s seed.
 
 ## Design
 
-Dark navy/near-black canvas, a single vivid green accent (`#1DD75B`), white headings and
-grey secondary text, large rounded cards with soft shadows, and large tabular figures in
-Inter. Income is green, expenses fall back to a muted red, and amounts can be masked
-app-wide with the balance eye toggle.
+Dark navy canvas, one green accent (`#1DD75B`), Inter, large tabular amounts. Income is green; expenses are muted red. Hide balances masks figures app-wide.
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm start` | Expo Go / Metro |
+| `npm run android` | Open on Android |
+| `npm run ios` | Open on iOS |
+| `npm run lint` | ESLint |
+
+---
+
+CashFlow mobile · Made by Pema Rinchen

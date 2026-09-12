@@ -10,10 +10,18 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "credentialsSource": "remote"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cash-flow-server-fawn.vercel.app"
       }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cash-flow-server-fawn.vercel.app"
+      }
+    }
   },
   "submit": {
     "production": {}
